@@ -9,6 +9,7 @@ import { DIET_LABEL, INTEREST_LABEL, INTERESTS, type Diet } from '../lib/prefs'
 import { enableReminders, reminderSupport } from '../hooks/useReminders'
 import { downloadIcs } from '../lib/calendar'
 import type { ItineraryState, LuupPlan, ThemePref } from '../types'
+import { OfflineButton } from './OfflineButton'
 import { PlaceSearch } from './PlaceSearch'
 import { Button, Card, SectionTitle, Sheet } from './ui'
 
@@ -118,6 +119,10 @@ export function SettingsSheet({ tripDays, geo, itin, prefs, theme, onPlanNew, on
             />
           </label>
         </Card>
+
+        <SectionTitle>Offline</SectionTitle>
+        <OfflineButton days={tripDays} label={`Save ${tripDays.length > 1 ? 'whole trip' : 'plan'} for offline`} />
+        <p className="px-1 pt-1 text-[13px] text-muted">Saves the map around each stop and the photos, for underground and patchy signal. Do it on Wi-Fi.</p>
 
         <SectionTitle>Food needs</SectionTitle>
         <div className="flex flex-wrap gap-2">

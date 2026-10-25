@@ -21,7 +21,7 @@ Live site: **https://spidyloke.github.io/travel-buddy/**
 - **Share**: send a one-off copy of a plan as a link or QR code. The plan travels inside the link (compressed, nothing uploaded); opening it on another phone offers to load it.
 - **Currency**: yen ↔ your currency converter (default MYR) with live reference rates (European Central Bank via Frankfurter, fallback ExchangeRate-API), kept for offline use; converted amounts shown next to fares and the day's transport total.
 - **Settings**: home, LUUP plan, interests, food needs, currency, theme, start over.
-- Offline: app shell, saved plan and previously viewed map tiles and photos.
+- Offline: app shell and saved plan always; **Save for offline** (Itinerary / Settings) fetches the map around each stop (zoom 14–16, ~500 m, capped at 400 tiles to respect OpenStreetMap's tile policy) and the plan's photos; anything viewed before is cached too.
 
 ### Prices
 

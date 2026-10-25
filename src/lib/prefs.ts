@@ -31,8 +31,12 @@ function initial(): Prefs {
   // Prefs saved before the currency setting existed default to ringgit.
   if (saved) return { ...saved, currency: saved.currency ?? 'MYR', diet: saved.diet ?? [], alerts: saved.alerts ?? false }
   // People who used the app before setup existed: keep their day and their LUUP subscription.
+  // Decided once and saved straight away: the app stores a default plan on
+  // first load, which must not make a new user look like a returning one.
   const legacy = load<unknown>(LEGACY_ITINERARY_KEY, null) != null
-  return { luup: legacy ? 'sub' : 'none', interests: [], pace: 'balanced', onboarded: legacy, currency: 'MYR', diet: [], alerts: false }
+  const first: Prefs = { luup: legacy ? 'sub' : 'none', interests: [], pace: 'balanced', onboarded: legacy, currency: 'MYR', diet: [], alerts: false }
+  save(KEY, first)
+  return first
 }
 
 let current: Prefs = initial()

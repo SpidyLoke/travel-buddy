@@ -17,6 +17,7 @@ import type { Interest, ItineraryStop, LatLng, Place, TransportMode } from '../t
 import { MODE_META } from './Journey'
 import { HomeCard } from './HomeTrip'
 import { PlaceCard } from './PlaceCard'
+import { OfflineButton } from './OfflineButton'
 import { PlacePhoto } from './PlacePhoto'
 import { MealRow, mealSlots, type MealSlot } from './Food'
 import { DayWeatherNote, RainWarning, WeatherBadge } from './Weather'
@@ -212,6 +213,7 @@ function DayList({ itin, timeline, advice, gps, openJourney, showOnMap, trip, op
         </span>
 
       </div>
+      <OfflineButton days={[state]} label="Save this day for offline (map + photos)" />
       <Button className="w-full text-[14px]" onClick={() => downloadIcs([state])}>
         <CalendarPlus size={16} /> Add this day to Calendar (with leave-by alerts)
       </Button>
