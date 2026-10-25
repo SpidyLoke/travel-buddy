@@ -2,14 +2,15 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { Crosshair, Layers, Navigation } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { findLeg } from '../data/legs'
+import { findLeg, findTrainLeg } from '../data/legs'
 import { getPlace, placeLabel } from '../data/places'
 import type { Geo } from '../hooks/useGeolocation'
-import { distanceKm, formatDistance } from '../lib/geo'
+import { distanceKm, formatDistance, OFF_ROUTE_KM } from '../lib/geo'
 import { directionsUrl, modeToGoogle } from '../lib/maps'
+import { walkRoute, type WalkRoute } from '../lib/routing'
 import type { Timeline } from '../lib/schedule'
 import { fmtMin } from '../lib/time'
-import type { ItineraryState, Place } from '../types'
+import type { ItineraryState, LatLng, Place } from '../types'
 import { LocationHelp } from './LocationHelp'
 import { Card, LinkButton, Notice } from './ui'
 
@@ -29,6 +30,7 @@ export function MapView({ visible, geo, state, timeline, focus, online }: Props)
   const map = useRef<L.Map | null>(null)
   const layers = useRef<L.LayerGroup | null>(null)
   const userLayer = useRef<L.LayerGroup | null>(null)
+  const routeLayer = useRef<L.LayerGroup | null>(null)
   const centredOnce = useRef(false)
   const [tileErrors, setTileErrors] = useState(0)
   const [showStations, setShowStations] = useState(true)
@@ -46,6 +48,7 @@ export function MapView({ visible, geo, state, timeline, focus, online }: Props)
     tiles.on('tileerror', () => setTileErrors((n) => n + 1))
     tiles.on('tileload', () => setTileErrors(0))
     tiles.addTo(m)
+    routeLayer.current = L.layerGroup().addTo(m)
     layers.current = L.layerGroup().addTo(m)
     userLayer.current = L.layerGroup().addTo(m)
     map.current = m
@@ -73,17 +76,13 @@ export function MapView({ visible, geo, state, timeline, focus, online }: Props)
       .bindPopup(`<b>Start: ${start.name}</b><br>${start.nameJa}<br>${fmtMin(state.startMin)}`)
       .addTo(g)
 
-    let n = 0
-    state.stops.forEach((stop) => {
+    state.stops.forEach((stop, idx) => {
       const p = getPlace(stop.placeId)
       const entry = timeline.entries.find((e) => e.stop.id === stop.id)
       const isNext = timeline.nextIndex >= 0 && timeline.entries[timeline.nextIndex]?.stop.id === stop.id
       const cls = stop.status === 'skipped' ? 'skipped' : stop.status === 'done' ? 'done' : isNext ? 'next' : 'upcoming'
-      const label = stop.status === 'skipped' ? '–' : stop.status === 'done' ? '✓' : String(++n)
-      if (stop.status !== 'skipped') {
-        if (stop.status === 'done') n++
-        pts.push([p.lat, p.lng])
-      }
+      const label = stop.status === 'skipped' ? '–' : stop.status === 'done' ? '✓' : String(idx + 1)
+      if (stop.status !== 'skipped') pts.push([p.lat, p.lng])
       const size = isNext ? 40 : 30
       L.marker([p.lat, p.lng], {
         icon: L.divIcon({ className: '', html: `<div class="pin ${cls}">${label}</div>`, iconSize: [size, size] }),
@@ -134,6 +133,47 @@ export function MapView({ visible, geo, state, timeline, focus, online }: Props)
   }, [focus, visible])
 
   const cur = timeline.nextIndex >= 0 ? timeline.entries[timeline.nextIndex] : undefined
+
+  // Walking route for the next leg: to the stop when walking, or to the
+  // boarding station when taking the train. LUUP gets no drawn route because
+  // there is no scooter-legal routing source.
+  const gpsNear = geo.status === 'active' && geo.position && !geo.outsideTokyo ? geo.position : null
+  const routeTarget = (() => {
+    if (!cur) return null
+    if (cur.stop.transport === 'walk') return { to: cur.place as LatLng, label: placeLabel(cur.place) }
+    const leg = cur.stop.transport === 'train' ? findTrainLeg(cur.prev.id, cur.place.id) : undefined
+    // Only route to the boarding station when you are actually near it.
+    if (leg && (!gpsNear || distanceKm(gpsNear, leg.segments[0].from) <= OFF_ROUTE_KM)) {
+      return { to: leg.segments[0].from as LatLng, label: `${leg.segments[0].from.name} Station` }
+    }
+    return null
+  })()
+  const routeFrom = gpsNear ?? (cur ? (cur.prev as LatLng) : null)
+  // Round the origin so small GPS jitter does not trigger a new request.
+  const fromKey = routeFrom ? `${routeFrom.lat.toFixed(3)},${routeFrom.lng.toFixed(3)}` : ''
+  const toKey = routeTarget ? `${routeTarget.to.lat},${routeTarget.to.lng}` : ''
+  const [route, setRoute] = useState<{ data: WalkRoute | null; label: string; failed: boolean } | null>(null)
+  useEffect(() => {
+    if (!visible || !routeFrom || !routeTarget || !online) return
+    if (distanceKm(routeFrom, routeTarget.to) < 0.05 || distanceKm(routeFrom, routeTarget.to) > 6) {
+      setRoute(null)
+      return
+    }
+    const ctrl = new AbortController()
+    const t = setTimeout(() => ctrl.abort(), 10000)
+    walkRoute(routeFrom, routeTarget.to, ctrl.signal).then((data) => setRoute({ data, label: routeTarget.label, failed: !data }))
+    return () => {
+      clearTimeout(t)
+      ctrl.abort()
+    }
+  }, [visible, fromKey, toKey, online])
+  useEffect(() => {
+    const g = routeLayer.current
+    if (!g) return
+    g.clearLayers()
+    if (route?.data) L.polyline(route.data.coords, { color: '#30a46c', weight: 6, opacity: 0.85 }).addTo(g)
+  }, [route])
+
   const recentre = () => {
     if (geo.position) map.current?.setView([geo.position.lat, geo.position.lng], 16)
     else geo.start()
@@ -170,9 +210,18 @@ export function MapView({ visible, geo, state, timeline, focus, online }: Props)
             <LocationHelp geo={geo} />
           </Card>
         )}
+        {route && cur && (
+          <div className="flex justify-center">
+            <span className="rounded-full bg-card px-3 py-1.5 text-[13px] font-semibold shadow">
+              {route.data
+                ? `🚶 ${formatDistance(route.data.km)} · ~${route.data.min} min walk to ${route.label}`
+                : 'Walking route unavailable: use Go for directions'}
+            </span>
+          </div>
+        )}
         {cur && (
           <Card className="p-3 flex items-center gap-3 shadow-lg">
-            <div className="pin next !size-10 shrink-0">{timeline.nextIndex + 1}</div>
+            <div className="pin next !size-10 shrink-0">{state.stops.findIndex((st) => st.id === cur.stop.id) + 1}</div>
             <div className="min-w-0 flex-1">
               <div className="text-[12px] font-bold uppercase text-muted">Next stop</div>
               <div className="text-[17px] font-bold truncate">{placeLabel(cur.place)}</div>
@@ -180,7 +229,7 @@ export function MapView({ visible, geo, state, timeline, focus, online }: Props)
                 {geo.position ? `${formatDistance(distanceKm(geo.position, cur.place))} straight line` : `Arrive ~${fmtMin(cur.projectedArrive)}`}
               </div>
             </div>
-            <LinkButton variant="primary" className="shrink-0" href={directionsUrl(cur.place, modeToGoogle[cur.stop.transport], geo.position ?? cur.prev)}>
+            <LinkButton variant="primary" className="shrink-0" href={directionsUrl(cur.place, modeToGoogle[cur.stop.transport], geo.status === 'active' && !geo.outsideTokyo ? geo.position : undefined)}>
               Go
             </LinkButton>
           </Card>

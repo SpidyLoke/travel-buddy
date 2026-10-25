@@ -2,6 +2,9 @@ import type { LatLng } from '../types'
 
 const R = 6371
 
+/** Further than this from a leg's start, the planned steps no longer apply. */
+export const OFF_ROUTE_KM = 1.5
+
 /** Great-circle distance in km. */
 export function distanceKm(a: LatLng, b: LatLng): number {
   const toRad = (d: number) => (d * Math.PI) / 180

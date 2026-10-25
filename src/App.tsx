@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { BottomNav, type Tab } from './components/BottomNav'
 import { Dashboard } from './components/Dashboard'
 import { ItineraryView } from './components/ItineraryView'
@@ -27,6 +27,13 @@ export default function App() {
   const nowMin = nowMinJst(now)
   const timeline = useMemo(() => buildTimeline(itin.state, nowMin), [itin.state, nowMin])
   const advice = useMemo(() => adviseSchedule(itin.state, timeline), [itin.state, timeline])
+
+  // Nothing left to navigate to: stop GPS to save battery.
+  const dayDone = timeline.nextIndex === -1
+  const { stop: stopGps, status: gpsStatus } = geo
+  useEffect(() => {
+    if (dayDone && (gpsStatus === 'active' || gpsStatus === 'locating')) stopGps()
+  }, [dayDone, gpsStatus, stopGps])
 
   const journey = journeyStopId ? timeline.entries.find((e) => e.stop.id === journeyStopId) : undefined
   const gps = geo.status === 'active' && !geo.outsideTokyo ? geo.position : null

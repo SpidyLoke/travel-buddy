@@ -1,13 +1,14 @@
-import type { ReactNode } from 'react'
-import { Check, Crosshair, ListChecks, LocateFixed, MapPin, Navigation, SkipForward, SunMoon, Moon, Sun, WifiOff } from 'lucide-react'
-import { findLeg } from '../data/legs'
+import { useState, type ReactNode } from 'react'
+import { Check, Crosshair, Share, X, ListChecks, LocateFixed, MapPin, Navigation, SkipForward, SunMoon, Moon, Sun, WifiOff } from 'lucide-react'
+import { findTrainLeg } from '../data/legs'
 import { PLACES, placeLabel } from '../data/places'
 import type { Geo } from '../hooks/useGeolocation'
 import { POOR_ACCURACY_M } from '../hooks/useGeolocation'
 import type { ItineraryApi } from '../hooks/useItinerary'
-import { distanceKm, formatDistance } from '../lib/geo'
+import { distanceKm, formatDistance, OFF_ROUTE_KM } from '../lib/geo'
 import { directionsUrl, modeToGoogle } from '../lib/maps'
 import { costFor, recommend } from '../lib/pricing'
+import { load, save } from '../lib/storage'
 import type { Advice, Timeline } from '../lib/schedule'
 import { fmtDuration, fmtMin, jstClock, jstDateLabel } from '../lib/time'
 import type { ThemePref } from '../types'
@@ -40,10 +41,18 @@ export function Dashboard({ now, geo, itin, timeline, advice, online, theme, ope
     : null
   const distToNext = pos && cur ? distanceKm(pos, cur.place) : null
   const arrived = distToNext != null && distToNext < ARRIVED_KM
-  const leg = cur ? findLeg(cur.prev.id, cur.place.id) : undefined
+  const leg = cur ? findTrainLeg(cur.prev.id, cur.place.id) : undefined
   const mode = cur?.stop.transport ?? 'train'
   const ModeIcon = MODE_META[mode].Icon
-  const firstStep = cur && leg && mode === 'train' ? buildTrainSteps(leg, cur.place)[0]?.title : undefined
+  // GPS says you are nowhere near where this leg starts (e.g. you went off-plan).
+  const livePos = geo.status === 'active' && !geo.outsideTokyo ? pos : null
+  const boardAt = leg?.segments[0].from
+  const offRoute = !!(livePos && cur && !arrived && distanceKm(livePos, cur.prev) > OFF_ROUTE_KM && (!boardAt || distanceKm(livePos, boardAt) > OFF_ROUTE_KM))
+  const firstStep = offRoute
+    ? `You are ${formatDistance(distanceKm(livePos!, cur!.prev))} from ${placeLabel(cur!.prev)}, where this route starts. Tap Navigate for live directions from where you are.`
+    : cur && leg && mode === 'train'
+      ? buildTrainSteps(leg, cur.place)[0]?.title
+      : undefined
   const rec = cur ? recommend(cur.prev, cur.place) : null
   const cost = cur ? costFor(cur.prev, cur.place, mode) : null
   const ThemeIcon = theme.pref === 'dark' ? Moon : theme.pref === 'light' ? Sun : SunMoon
@@ -66,6 +75,8 @@ export function Dashboard({ now, geo, itin, timeline, advice, online, theme, ope
           </button>
         </div>
       </header>
+
+      <InstallHint />
 
       {/* Progress */}
       <div>
@@ -101,9 +112,19 @@ export function Dashboard({ now, geo, itin, timeline, advice, online, theme, ope
             <div className="text-[22px] font-bold leading-tight">
               {nearest.d < 0.5 ? `At ${nearest.p.name}` : `${formatDistance(nearest.d)} from ${placeLabel(nearest.p)}`}
             </div>
-            <div className="mt-1 text-[13px] text-muted flex items-center gap-1.5">
-              <LocateFixed size={14} /> GPS ±{Math.round(geo.accuracy ?? 0)} m
-              {(geo.accuracy ?? 0) > POOR_ACCURACY_M && <span className="text-warn font-semibold">· weak signal, position may be off</span>}
+            <div className="mt-1 text-[13px] text-muted flex items-center gap-1.5 flex-wrap">
+              <LocateFixed size={14} />
+              {geo.status === 'paused' ? (
+                <span>Last known position · tracking off</span>
+              ) : (
+                <>
+                  GPS ±{Math.round(geo.accuracy ?? 0)} m
+                  {(geo.accuracy ?? 0) > POOR_ACCURACY_M && <span className="text-warn font-semibold">· weak signal, position may be off</span>}
+                </>
+              )}
+              <button className="ml-auto font-semibold text-accent" onClick={geo.status === 'paused' ? geo.start : geo.stop}>
+                {geo.status === 'paused' ? 'Resume GPS' : 'Stop GPS'}
+              </button>
             </div>
             {geo.outsideTokyo && <div className="mt-2"><Notice tone="warn">You appear to be outside Tokyo. Distances will look large.</Notice></div>}
           </div>
@@ -155,7 +176,7 @@ export function Dashboard({ now, geo, itin, timeline, advice, online, theme, ope
                     {MODE_META[mode].label} · ~{fmtDuration(cur.travel.min)}
                     {cur.travel.source === 'calc' && '*'} · {cost.label}
                   </div>
-                  <div className="text-[13px] text-muted">From {placeLabel(cur.prev)}</div>
+                  <div className="text-[13px] text-muted">{offRoute ? 'From your current location' : `From ${placeLabel(cur.prev)}`}</div>
                 </div>
               </div>
               {rec.mode === mode ? (
@@ -206,7 +227,7 @@ export function Dashboard({ now, geo, itin, timeline, advice, online, theme, ope
           )}
 
           <div className="grid grid-cols-1 gap-2">
-            <LinkButton variant={mode === 'luup' ? 'luup' : 'primary'} className="min-h-14 text-[18px]" href={directionsUrl(cur.place, modeToGoogle[mode], pos ?? cur.prev)}>
+            <LinkButton variant={mode === 'luup' ? 'luup' : 'primary'} className="min-h-14 text-[18px]" href={directionsUrl(cur.place, modeToGoogle[mode], geo.status === 'active' && !geo.outsideTokyo ? pos : undefined)}>
               <Navigation size={20} /> Navigate
             </LinkButton>
             <Button variant="secondary" className="min-h-13" onClick={openJourney}>
@@ -231,6 +252,36 @@ export function Dashboard({ now, geo, itin, timeline, advice, online, theme, ope
         </Card>
       )}
     </div>
+  )
+}
+
+const HINT_KEY = 'tokyo-day:install-hint-dismissed'
+
+/** iPhone Safari only: suggests Add to Home Screen until dismissed or installed. */
+function InstallHint() {
+  const [show, setShow] = useState(() => {
+    const ios = /iPhone|iPad|iPod/.test(navigator.userAgent)
+    const standalone = window.matchMedia('(display-mode: standalone)').matches || (navigator as { standalone?: boolean }).standalone === true
+    return ios && !standalone && !load(HINT_KEY, false)
+  })
+  if (!show) return null
+  return (
+    <Notice
+      tone="info"
+      action={
+        <button
+          aria-label="Dismiss"
+          onClick={() => {
+            save(HINT_KEY, true)
+            setShow(false)
+          }}
+        >
+          <X size={18} />
+        </button>
+      }
+    >
+      Install it: tap <Share size={14} className="inline -mt-1" /> Share, then <b>Add to Home Screen</b>. Opens full screen and keeps working offline.
+    </Notice>
   )
 }
 

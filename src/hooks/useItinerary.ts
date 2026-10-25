@@ -1,14 +1,38 @@
 import { useCallback, useEffect, useState } from 'react'
 import { DEFAULT_ITINERARY } from '../data/itinerary'
 import { PLACE_BY_ID } from '../data/places'
+import { distanceKm } from '../lib/geo'
+import { recommend } from '../lib/pricing'
 import { load, save } from '../lib/storage'
-import type { ItineraryState, ItineraryStop, StopStatus, TransportMode } from '../types'
+import type { ItineraryState, ItineraryStop, Place, StopStatus, TransportMode } from '../types'
 
 const KEY = 'tokyo-day:itinerary:v1'
 
 function sanitise(s: ItineraryState): ItineraryState {
   if (!s || s.version !== 1 || !Array.isArray(s.stops)) return DEFAULT_ITINERARY
   return { ...s, stops: s.stops.filter((st) => PLACE_BY_ID[st.placeId]) }
+}
+
+/**
+ * Where a new stop adds the least straight-line detour: after anything
+ * already visited and before the final stop, so Shinjuku stays the finish.
+ */
+function bestInsertIndex(s: ItineraryState, place: Place): number {
+  const at = (i: number) => (i < 0 ? PLACE_BY_ID[s.startPlaceId] : PLACE_BY_ID[s.stops[i].placeId])
+  const lastDone = s.stops.map((st) => st.status).lastIndexOf('done')
+  const last = Math.max(lastDone + 1, s.stops.length - 1)
+  let best = last
+  let bestCost = Infinity
+  for (let i = lastDone + 1; i <= last; i++) {
+    const prev = at(i - 1)
+    const next = i < s.stops.length ? at(i) : undefined
+    const cost = distanceKm(prev, place) + (next ? distanceKm(place, next) - distanceKm(prev, next) : 0)
+    if (cost < bestCost) {
+      bestCost = cost
+      best = i
+    }
+  }
+  return best
 }
 
 export function useItinerary() {
@@ -39,15 +63,16 @@ export function useItinerary() {
     })
   }, [])
 
-  const add = useCallback((placeId: string, transport: TransportMode = 'train') => {
+  const add = useCallback((placeId: string, transport?: TransportMode) => {
     const place = PLACE_BY_ID[placeId]
     if (!place) return
     setState((s) => {
       const id = s.stops.some((st) => st.id === placeId) ? `${placeId}-${Date.now()}` : placeId
-      const stop: ItineraryStop = { id, placeId, durationMin: place.suggestedMin || 30, transport, status: 'pending' }
-      // Insert before the final stop so Shinjuku stays the finish.
+      const index = bestInsertIndex(s, place)
+      const prev = index > 0 ? PLACE_BY_ID[s.stops[index - 1].placeId] : PLACE_BY_ID[s.startPlaceId]
+      const stop: ItineraryStop = { id, placeId, durationMin: place.suggestedMin || 30, transport: transport ?? recommend(prev, place).mode, status: 'pending' }
       const stops = [...s.stops]
-      stops.splice(Math.max(0, stops.length - 1), 0, stop)
+      stops.splice(index, 0, stop)
       return { ...s, stops }
     })
   }, [])

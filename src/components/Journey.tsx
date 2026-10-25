@@ -1,5 +1,5 @@
 import { ArrowRight, Bike, ExternalLink, Footprints, Info, TrainFront, TriangleAlert } from 'lucide-react'
-import { findLeg } from '../data/legs'
+import { findLeg, findTrainLeg } from '../data/legs'
 import { placeLabel } from '../data/places'
 import { formatDistance } from '../lib/geo'
 import { directionsUrl, LUUP_URL } from '../lib/maps'
@@ -139,7 +139,7 @@ export function TransportCompare({ from, to, selected, onSelect }: CompareProps)
                 {e.source === 'calc' && '*'}
               </div>
               <div className="text-[12px] text-muted">
-                {m === 'train' ? (leg ? `${leg.segments.length - 1} transfer${leg.segments.length === 2 ? '' : 's'}` : 'Fare in Maps') : m === 'walk' ? (walkTooFar ? 'Long walk' : formatDistance(e.km)) : `¥${LUUP_BLOCK_YEN}/${LUUP_BLOCK_MIN} min`}
+                {m === 'train' ? (leg?.segments.length ? `${leg.segments.length - 1} transfer${leg.segments.length === 2 ? '' : 's'}` : 'Fare in Maps') : m === 'walk' ? (walkTooFar ? 'Long walk' : formatDistance(e.km)) : `¥${LUUP_BLOCK_YEN}/${LUUP_BLOCK_MIN} min`}
               </div>
             </button>
           )
@@ -167,7 +167,7 @@ interface ModeProps {
 }
 
 export function TrainMode({ from, to, origin }: ModeProps) {
-  const leg = findLeg(from.id, to.id)
+  const leg = findTrainLeg(from.id, to.id)
   return (
     <div className="space-y-3">
       {leg ? (

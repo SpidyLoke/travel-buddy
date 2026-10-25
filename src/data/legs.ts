@@ -26,12 +26,23 @@ const S = {
   harajuku: { name: 'Harajuku', nameJa: '原宿', code: 'JY19', lat: 35.6702, lng: 139.7027 },
   shibuya: { name: 'Shibuya', nameJa: '渋谷', code: 'JY20', lat: 35.658, lng: 139.7016 },
   shinjuku: { name: 'Shinjuku', nameJa: '新宿', code: 'JY17', lat: 35.6896, lng: 139.7006 },
+  uenoG: { name: 'Ueno', nameJa: '上野', code: 'G16', lat: 35.7113, lng: 139.7772 },
+  uenoJR: { name: 'Ueno', nameJa: '上野', code: 'JY05', lat: 35.7138, lng: 139.7773 },
+  akihabaraJR: { name: 'Akihabara', nameJa: '秋葉原', code: 'JY03', lat: 35.6984, lng: 139.7731 },
+  akihabaraH: { name: 'Akihabara', nameJa: '秋葉原', lat: 35.6976, lng: 139.775 },
+  tokyoJR: { name: 'Tokyo', nameJa: '東京', code: 'JY01', lat: 35.6812, lng: 139.7671 },
+  tokyoM: { name: 'Tokyo', nameJa: '東京', code: 'M17', lat: 35.6818, lng: 139.7652 },
+  ginzaM: { name: 'Ginza', nameJa: '銀座', code: 'M16', lat: 35.6721, lng: 139.7637 },
+  akabanebashi: { name: 'Akabanebashi', nameJa: '赤羽橋', code: 'E21', lat: 35.655, lng: 139.7434 },
+  roppongiE: { name: 'Roppongi', nameJa: '六本木', code: 'E23', lat: 35.6631, lng: 139.7316 },
 } satisfies Record<string, Station>
 
 const TOBU = { operator: 'Tobu Railway', line: 'Tobu Skytree Line', lineJa: '東武スカイツリーライン', colour: '#1f5fa8', lineCode: 'TS' }
 const GINZA = { operator: 'Tokyo Metro', line: 'Ginza Line', lineJa: '銀座線', colour: '#f39700', lineCode: 'G' }
 const HIBIYA = { operator: 'Tokyo Metro', line: 'Hibiya Line', lineJa: '日比谷線', colour: '#9caeb7', lineCode: 'H' }
 const CHIYODA = { operator: 'Tokyo Metro', line: 'Chiyoda Line', lineJa: '千代田線', colour: '#00bb85', lineCode: 'C' }
+const MARUNOUCHI = { operator: 'Tokyo Metro', line: 'Marunouchi Line', lineJa: '丸ノ内線', colour: '#e60012', lineCode: 'M' }
+const OEDO = { operator: 'Toei Subway', line: 'Ōedo Line', lineJa: '大江戸線', colour: '#ce045b', lineCode: 'E' }
 const YAMANOTE = { operator: 'JR East', line: 'Yamanote Line', lineJa: '山手線', colour: '#9acd32', lineCode: 'JY' }
 
 export const LEGS: Leg[] = [
@@ -287,10 +298,209 @@ export const LEGS: Leg[] = [
       'The JR Saikyō Line and Shōnan-Shinjuku Line go non-stop to Shinjuku (1 stop). Check the platform sign shows 新宿.',
     ],
   },
+  // Common skips and optional destinations.
+  {
+    from: 'akihabara',
+    to: 'tokyotower',
+    why: 'One train all the way to Kamiyachō, no transfer. Too far for one LUUP block.',
+    trainFareYen: 209,
+    fareApprox: true,
+    estimateMin: { train: 30 },
+    distanceKm: 6,
+    recommended: 'train',
+    walkToStation: 'Walk to the Tokyo Metro Hibiya Line entrance at Akihabara (grey "H" signs), on Shōwa-dōri south of the JR station.',
+    segments: [
+      {
+        ...HIBIYA,
+        from: S.akihabaraH,
+        direction: 'Naka-Meguro',
+        directionJa: '中目黒',
+        stops: 11,
+        stopNames: ['Kodemmachō', 'Ningyōchō', 'Kayabachō', 'Hatchōbori', 'Tsukiji', 'Higashi-ginza', 'Ginza', 'Hibiya', 'Kasumigaseki', 'Toranomon Hills', 'Kamiyachō'],
+        to: S.kamiyacho,
+      },
+    ],
+    exitTip: 'Follow exit signs for 東京タワー (Tokyo Tower). About 7–10 minutes\' walk, slightly uphill.',
+  },
+  {
+    from: 'akihabara',
+    to: 'takeshita',
+    why: 'One line end to end, no transfer. Far too far for LUUP.',
+    trainFareYen: 209,
+    estimateMin: { train: 35 },
+    distanceKm: 9.6,
+    recommended: 'train',
+    walkToStation: 'Walk north up Chūō-dōri to Suehirochō Station (Ginza Line, orange "G" signs).',
+    segments: [
+      {
+        ...GINZA,
+        from: S.suehirocho,
+        direction: 'Shibuya',
+        directionJa: '渋谷',
+        stops: 12,
+        stopNames: ['Kanda', 'Mitsukoshimae', 'Nihombashi', 'Kyōbashi', 'Ginza', 'Shimbashi', 'Toranomon', 'Tameike-sannō', 'Akasaka-mitsuke', 'Aoyama-itchōme', 'Gaiemmae', 'Omote-sandō'],
+        to: S.omotesando,
+      },
+    ],
+    exitTip: 'Exit toward 表参道 (Omotesando avenue). Walk 10–12 minutes downhill, turn right at Meiji-dōri, and Takeshita Street is on your left.',
+  },
+  {
+    from: 'takeshita',
+    to: 'shinjuku',
+    why: 'Two stops on the Yamanote Line. Quicker than finding LUUP ports in the Harajuku crowds.',
+    trainFareYen: 155,
+    estimateMin: { train: 12 },
+    distanceKm: 2.2,
+    recommended: 'train',
+    walkToStation: 'Walk to JR Harajuku Station, opposite the top of Takeshita Street.',
+    segments: [
+      {
+        ...YAMANOTE,
+        from: S.harajuku,
+        direction: 'Shinjuku / Ikebukuro',
+        directionJa: '新宿・池袋',
+        stops: 2,
+        stopNames: ['Yoyogi', 'Shinjuku'],
+        to: S.shinjuku,
+      },
+    ],
+    exitTip: 'Follow yellow signs for 東口 (East Exit) for Kabukichō, Omoide Yokochō and the 3D cat billboard.',
+  },
+  {
+    from: 'sensoji',
+    to: 'ueno',
+    why: 'Three stops on the Ginza Line, cheaper than LUUP.',
+    trainFareYen: 178,
+    estimateMin: { train: 12 },
+    distanceKm: 2.5,
+    recommended: 'train',
+    walkToStation: 'Walk to Tokyo Metro Asakusa Station (Ginza Line, orange "G" signs) by Kaminarimon.',
+    segments: [
+      {
+        ...GINZA,
+        from: S.asakusaGinza,
+        direction: 'Shibuya',
+        directionJa: '渋谷',
+        stops: 3,
+        stopNames: ['Tawaramachi', 'Inarichō', 'Ueno'],
+        to: S.uenoG,
+        boardingTip: 'Asakusa is the end of the line. Every train leaves toward Shibuya.',
+      },
+    ],
+    exitTip: 'Follow signs for 上野公園 (Ueno Park). The park entrance is a short walk up the steps by JR Ueno.',
+  },
+  {
+    from: 'ueno',
+    to: 'akihabara',
+    why: 'Walk down through Ameyoko market. It is the sight, it is free, and it takes you straight to Akihabara.',
+    trainFareYen: 155,
+    estimateMin: { train: 10, walk: 20 },
+    distanceKm: 1.6,
+    recommended: 'walk',
+    walkToStation: 'Walk to JR Ueno Station (green Yamanote Line signs).',
+    segments: [
+      {
+        ...YAMANOTE,
+        from: S.uenoJR,
+        direction: 'Tokyo / Shinagawa',
+        directionJa: '東京・品川',
+        stops: 2,
+        stopNames: ['Okachimachi', 'Akihabara'],
+        to: S.akihabaraJR,
+      },
+    ],
+    exitTip: 'Take the Electric Town Exit (電気街口).',
+    walkNote: 'Head south from Ueno Station through Ameyoko market under the JR tracks, then keep south along Chūō-dōri into Akihabara. About 20 minutes.',
+  },
+  {
+    from: 'akihabara',
+    to: 'tokyostation',
+    why: 'Two stops on the Yamanote Line.',
+    trainFareYen: 155,
+    estimateMin: { train: 10 },
+    distanceKm: 2,
+    recommended: 'train',
+    walkToStation: 'Walk to JR Akihabara Station (green Yamanote Line signs).',
+    segments: [
+      {
+        ...YAMANOTE,
+        from: S.akihabaraJR,
+        direction: 'Tokyo / Shinagawa',
+        directionJa: '東京・品川',
+        stops: 2,
+        stopNames: ['Kanda', 'Tokyo'],
+        to: S.tokyoJR,
+      },
+    ],
+    exitTip: 'Follow signs for 丸の内 (Marunouchi) side for the red-brick building.',
+  },
+  {
+    from: 'tokyostation',
+    to: 'ginza',
+    why: 'About 15 minutes on foot through Marunouchi and Yūrakuchō, nicer than going underground for one stop.',
+    trainFareYen: 178,
+    estimateMin: { train: 10, walk: 15 },
+    distanceKm: 1.2,
+    recommended: 'walk',
+    walkToStation: 'Use the Marunouchi Line (red "M" signs) at Tokyo Station.',
+    segments: [
+      {
+        ...MARUNOUCHI,
+        from: S.tokyoM,
+        direction: 'Ogikubo',
+        directionJa: '荻窪',
+        stops: 1,
+        stopNames: ['Ginza'],
+        to: S.ginzaM,
+      },
+    ],
+    exitTip: 'Follow signs for 銀座四丁目交差点 (Ginza 4-chome crossing).',
+    walkNote: 'Walk south through Marunouchi past Tokyo International Forum and under the Yūrakuchō tracks into Ginza. About 15 minutes.',
+  },
+  {
+    from: 'tokyotower',
+    to: 'roppongi',
+    why: 'Short ride with no transfer worries, one ¥200 block.',
+    trainFareYen: 178,
+    fareApprox: true,
+    estimateMin: { train: 15, luup: 12, walk: 25 },
+    distanceKm: 1.8,
+    recommended: 'luup',
+    walkToStation: 'Walk to Akabanebashi Station (Toei Ōedo Line, magenta "E" signs), about 5 minutes west of the tower.',
+    segments: [
+      {
+        ...OEDO,
+        from: S.akabanebashi,
+        direction: 'Tochōmae',
+        directionJa: '都庁前',
+        stops: 2,
+        stopNames: ['Azabu-jūban', 'Roppongi'],
+        to: S.roppongiE,
+      },
+    ],
+    exitTip: 'Follow signs for 六本木ヒルズ (Roppongi Hills).',
+    luupNote: 'About 2 km via Azabu-jūban. Pick a return port near Roppongi Hills in the app before unlocking. Some of the climb into Roppongi is steep.',
+  },
+  {
+    from: 'roppongi',
+    to: 'takeshita',
+    why: 'About 3.5 km along Aoyama roads, one ¥200 block. By train it takes two lines and two operators.',
+    estimateMin: { luup: 20, train: 30 },
+    distanceKm: 3.5,
+    recommended: 'luup',
+    segments: [],
+    luupNote: 'Ride via Aoyama-dōri or Roppongi-dōri, then end at a port near Omotesando or Meiji-dōri. Takeshita Street is a no-ride zone.',
+  },
 ]
 
 export function findLeg(from: string, to: string): Leg | undefined {
   return LEGS.find((l) => l.from === from && l.to === to)
+}
+
+/** The leg only if it has hand-written train segments. */
+export function findTrainLeg(from: string, to: string): Leg | undefined {
+  const leg = findLeg(from, to)
+  return leg && leg.segments.length > 0 ? leg : undefined
 }
 
 export const ALL_STATIONS: Station[] = Object.values(S)

@@ -6,15 +6,19 @@ Live site: **https://spidyloke.github.io/travel-buddy/**
 
 ## What it does
 
-- **Home**: Japan time, GPS position, next stop, which line/direction/stop to use, the next action, and Navigate / train-instruction buttons. Schedule advice ("running 40 min behind, skip Ginza to reach Harajuku before shops close").
-- **Map**: OpenStreetMap + Leaflet, blue-dot location, numbered stops (next / done / upcoming / skipped), stations for upcoming train legs.
-- **Itinerary**: mark visited, skip, restore, reorder, add, remove, change visit length, start time and transport. Destination guide for 16 places with train/walk navigation, map and copy-Japanese-name buttons.
+- **Home**: Japan time, GPS position, next stop, which line/direction/stop to use, the next action, and Navigate / train-instruction buttons. Recommended mode (train / LUUP / walk) with the reason and price for every leg. Schedule advice ("running 40 min behind, skip Ginza to reach Harajuku before shops close"). Notices when you are away from where a leg starts and switches to live directions. GPS stop/resume.
+- **Map**: OpenStreetMap + Leaflet, blue-dot location, numbered stops (next / done / upcoming / skipped), stations for upcoming train legs, and a walking route (OpenStreetMap foot routing via routing.openstreetmap.de) to the next stop or boarding station. Falls back to straight lines if routing is unreachable. No route is drawn for LUUP.
+- **Itinerary**: mark visited, skip, restore, reorder, add, remove, change visit length, start and end time, and transport. New places are inserted where they add the least detour. Daily transport total. Destination guide for 16 places with train/walk navigation, map and copy-Japanese-name buttons.
 - **Train Guide**: Suica in Apple Wallet, gates, directions, platforms, transfers, exits, station codes, wrong train, low balance, sign glossary, LUUP rules.
 - Progress and preferences persist in `localStorage`. After the first load, the app shell works offline (PWA); map tiles you've already viewed are cached.
 
+### Prices
+
+Train prices are adult Suica (IC) fares by each operator's distance band, checked October 2026 (Tobu, Tokyo Metro, Toei, JR East after its 14 March 2026 revision). Fares marked `~` sit near a band edge. LUUP is priced at the subscription rate, ¥200 per started 30 minutes; change `LUUP_BLOCK_YEN` / `LUUP_BLOCK_MIN` in `src/lib/pricing.ts` if that changes.
+
 ### What it deliberately does not do
 
-No live departures, platforms, fares, disruptions, LUUP scooter or port availability. Those come from Google Maps (official [Maps URLs](https://developers.google.com/maps/documentation/urls/get-started)) and the LUUP app. Travel times are planning estimates; ones calculated from distance are marked with `*`. No API keys, no backend.
+No live departures, platforms, disruptions, LUUP scooter or port availability. Those come from Google Maps (official [Maps URLs](https://developers.google.com/maps/documentation/urls/get-started)) and the LUUP app. Travel times are planning estimates; ones calculated from distance are marked with `*`. No API keys, no backend.
 
 ## Run locally
 
@@ -49,6 +53,8 @@ src/
   data/itinerary.ts   default day plan
   lib/schedule.ts     timeline, delay projection, skip advice
   lib/maps.ts         Google Maps URL builders, LUUP link
+  lib/pricing.ts      fares, LUUP cost, per-leg recommendation
+  lib/routing.ts      walking routes (OSRM foot profile)
   hooks/              geolocation, itinerary persistence, theme, clock, online
   components/         Dashboard, MapView, ItineraryView, JourneySheet, TrainGuide…
 ```

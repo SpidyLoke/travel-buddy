@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { isInTokyoArea } from '../lib/geo'
 import type { LatLng } from '../types'
 
-export type GeoStatus = 'idle' | 'locating' | 'active' | 'denied' | 'unavailable' | 'unsupported'
+export type GeoStatus = 'idle' | 'paused' | 'locating' | 'active' | 'denied' | 'unavailable' | 'unsupported'
 
 export interface GeoState {
   status: GeoStatus
@@ -22,10 +22,11 @@ export function useGeolocation() {
   const [state, setState] = useState<GeoState>(INITIAL)
   const watchId = useRef<number | null>(null)
 
+  /** User or app turned tracking off. The last fix is kept and labelled as such. */
   const stop = useCallback(() => {
-    if (watchId.current != null) navigator.geolocation.clearWatch(watchId.current)
+    if (watchId.current != null && watchId.current >= 0) navigator.geolocation.clearWatch(watchId.current)
     watchId.current = null
-    setState((s) => ({ ...s, status: s.position ? s.status : 'idle' }))
+    setState((s) => ({ ...s, status: 'paused' }))
   }, [])
 
   const start = useCallback(() => {
@@ -67,6 +68,7 @@ export function useGeolocation() {
         navigator.geolocation.clearWatch(watchId.current)
         watchId.current = -1
       } else if (document.visibilityState === 'visible' && watchId.current === -1) {
+        // Only resumes if tracking was running when the app was backgrounded.
         watchId.current = null
         start()
       }
@@ -79,7 +81,7 @@ export function useGeolocation() {
     if (watchId.current != null && watchId.current >= 0) navigator.geolocation.clearWatch(watchId.current)
   }, [])
 
-  return { ...state, start, stop, tracking: watchId.current != null }
+  return { ...state, start, stop }
 }
 
 export type Geo = ReturnType<typeof useGeolocation>

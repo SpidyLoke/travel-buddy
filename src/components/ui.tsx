@@ -25,11 +25,18 @@ export function Button({ variant = 'secondary', className = '', ...rest }: Compo
 }
 
 /** Anchor styled as a button. External links always open in a new context. */
-export function LinkButton({ variant = 'secondary', className = '', ...rest }: ComponentProps<'a'> & { variant?: Variant }) {
+export function LinkButton({ variant = 'secondary', className = '', onClick, ...rest }: ComponentProps<'a'> & { variant?: Variant }) {
   return (
     <a
       target="_blank"
       rel="noopener noreferrer"
+      onClick={(e) => {
+        if (!navigator.onLine && !confirm('You are offline. Google Maps and LUUP need a connection and may not load. Open anyway?')) {
+          e.preventDefault()
+          return
+        }
+        onClick?.(e)
+      }}
       className={`inline-flex items-center justify-center gap-2 rounded-2xl px-4 min-h-12 font-semibold text-[15px] transition-opacity ${VARIANTS[variant]} ${className}`}
       {...rest}
     />

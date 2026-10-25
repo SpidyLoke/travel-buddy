@@ -1,5 +1,6 @@
 import { ArrowDown, ArrowUp, Check, ChevronDown, Clock, ListChecks, MapPin, Minus, Navigation, Plus, RotateCcw, SkipForward, Trash2, Undo2 } from 'lucide-react'
 import { useState } from 'react'
+import { DEFAULT_ITINERARY } from '../data/itinerary'
 import { getPlace, PLACES, placeLabel } from '../data/places'
 import type { ItineraryApi } from '../hooks/useItinerary'
 import { directionsUrl, modeToGoogle } from '../lib/maps'
@@ -44,6 +45,7 @@ export function ItineraryView({ itin, timeline, advice, gps, openJourney, showOn
 function DayList({ itin, timeline, advice, gps, openJourney, showOnMap }: Props) {
   const { state } = itin
   const [startText, setStartText] = useState(fmtMin(state.startMin))
+  const [endText, setEndText] = useState(fmtMin(state.endMin))
   const start = getPlace(state.startPlaceId)
   const dayCost = timeline.entries.reduce(
     (acc, e) => {
@@ -89,7 +91,20 @@ function DayList({ itin, timeline, advice, gps, openJourney, showOnMap }: Props)
             />
           </label>
         </div>
-        <div className="flex items-center gap-2 text-[13px]">
+        <div className="flex items-center justify-between gap-3 text-[13px]">
+          <span className="text-muted">Day ends at</span>
+          <input
+            type="time"
+            value={endText}
+            onChange={(e) => {
+              setEndText(e.target.value)
+              const m = parseHm(e.target.value)
+              if (m != null) itin.setEnd(m)
+            }}
+            className="bg-card-2 rounded-xl px-2 py-1.5 text-[16px] font-semibold tabular-nums"
+          />
+        </div>
+        <div className="flex flex-wrap items-center gap-2 text-[13px]">
           <span className="text-muted">Set all remaining to</span>
           {(['train', 'luup', 'walk'] as TransportMode[]).map((m) => {
             const { Icon, label, colour } = MODE_META[m]
@@ -131,7 +146,8 @@ function DayList({ itin, timeline, advice, gps, openJourney, showOnMap }: Props)
           onClick={() => {
             if (confirm('Reset the itinerary to the original plan? Visited and skipped marks will be cleared.')) {
               itin.reset()
-              setStartText(fmtMin(11 * 60))
+              setStartText(fmtMin(DEFAULT_ITINERARY.startMin))
+              setEndText(fmtMin(DEFAULT_ITINERARY.endMin))
             }
           }}
         >
