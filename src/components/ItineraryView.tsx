@@ -1,10 +1,11 @@
-import { ArrowDown, ArrowUp, Check, ChevronDown, Clock, ListChecks, MapPin, Minus, Navigation, Plus, Share2, SkipForward, Sparkles, Trash2, Undo2 } from 'lucide-react'
+import { ArrowDown, ArrowUp, CalendarPlus, Check, ChevronDown, Clock, ListChecks, MapPin, Minus, Navigation, Plus, Share2, SkipForward, Sparkles, Trash2, Undo2 } from 'lucide-react'
 import { Fragment, useState, type ReactNode } from 'react'
 import { getPlace, PLACES, placeLabel } from '../data/places'
 import type { ItineraryApi } from '../hooks/useItinerary'
 import type { Geo } from '../hooks/useGeolocation'
 import type { TripApi } from '../hooks/useTrip'
 import type { HomeTrip } from '../lib/home'
+import { downloadIcs } from '../lib/calendar'
 import { inHome } from '../lib/fx'
 import { scorePlace, whyPlace } from '../lib/planner'
 import { INTEREST_LABEL, INTERESTS, type Prefs } from '../lib/prefs'
@@ -211,6 +212,9 @@ function DayList({ itin, timeline, advice, gps, openJourney, showOnMap, trip, op
         </span>
 
       </div>
+      <Button className="w-full text-[14px]" onClick={() => downloadIcs([state])}>
+        <CalendarPlus size={16} /> Add this day to Calendar (with leave-by alerts)
+      </Button>
       <p className="px-1 text-[12px] text-muted">Times are planning estimates, not train timetables. Add places from the Destination guide or the Nearby tab.</p>
     </div>
   )

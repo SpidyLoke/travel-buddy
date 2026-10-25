@@ -11,6 +11,8 @@ export interface Prefs {
   currency: string
   /** Food needs used for meal suggestions. */
   diet: Diet[]
+  /** Best-effort "time to leave" notifications. */
+  alerts: boolean
 }
 
 export type Diet = 'halal' | 'vegetarian' | 'noseafood'
@@ -27,10 +29,10 @@ const LEGACY_ITINERARY_KEY = 'tokyo-day:itinerary:v1'
 function initial(): Prefs {
   const saved = load<Prefs | null>(KEY, null)
   // Prefs saved before the currency setting existed default to ringgit.
-  if (saved) return { ...saved, currency: saved.currency ?? 'MYR', diet: saved.diet ?? [] }
+  if (saved) return { ...saved, currency: saved.currency ?? 'MYR', diet: saved.diet ?? [], alerts: saved.alerts ?? false }
   // People who used the app before setup existed: keep their day and their LUUP subscription.
   const legacy = load<unknown>(LEGACY_ITINERARY_KEY, null) != null
-  return { luup: legacy ? 'sub' : 'none', interests: [], pace: 'balanced', onboarded: legacy, currency: 'MYR', diet: [] }
+  return { luup: legacy ? 'sub' : 'none', interests: [], pace: 'balanced', onboarded: legacy, currency: 'MYR', diet: [], alerts: false }
 }
 
 let current: Prefs = initial()

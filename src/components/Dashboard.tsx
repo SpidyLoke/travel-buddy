@@ -75,6 +75,10 @@ export function Dashboard({ now, geo, itin, timeline, advice, online, openSettin
   const prefs = getPrefs()
   // From an hour before a meal until an hour after, on the day itself.
   const nowMin = nowMinJst(now)
+  // Leave-by countdown for the plan as written, only on the day and within 3 hours.
+  const leaveBy = cur && (day === 'today' || day === 'undated') && timeline.started ? (arrived ? cur.plannedDepart : cur.plannedArrive - cur.travel.min) : null
+  const leaveLeft = leaveBy != null ? Math.round(leaveBy - nowMin) : null
+  const showLeave = leaveLeft != null && leaveLeft < 180
   const mealSoon = day === 'today' || day === 'undated' ? mealSlots(timeline).find((m) => nowMin >= m.meal.at - 60 && nowMin <= m.meal.at + 60) : undefined
   const rec = cur ? recommend(cur.prev, cur.place) : null
   const cost = cur ? costFor(cur.prev, cur.place, mode) : null
@@ -223,6 +227,15 @@ export function Dashboard({ now, geo, itin, timeline, advice, online, openSettin
                 {distToNext != null && !arrived && <div className="text-[13px] text-muted">{formatDistance(distToNext)} away</div>}
               </div>
             </div>
+            {showLeave && leaveBy != null && (
+              <div className={`mt-2 rounded-xl px-3 py-2 text-[14px] font-semibold ${leaveLeft! < 0 ? 'bg-bad/12 text-bad' : leaveLeft! <= 10 ? 'bg-warn/15 text-[#a66a00] dark:text-warn' : 'bg-card-2'}`}>
+                {leaveLeft! < -5
+                  ? `${-leaveLeft!} min behind plan (leave-by was ${fmtMin(leaveBy)})`
+                  : leaveLeft! <= 2
+                    ? `Leave now${arrived ? '' : ` for ${placeLabel(cur.place)}`}`
+                    : `Leave ${arrived ? `${placeLabel(cur.place)} ` : ''}in ${leaveLeft} min (by ${fmtMin(leaveBy)})`}
+              </div>
+            )}
             <div className="mt-2 empty:hidden">
               <RainWarning place={cur.place} date={itin.state.date ?? todayJst()} atMin={cur.projectedArrive} />
             </div>

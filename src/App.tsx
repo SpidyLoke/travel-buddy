@@ -23,6 +23,7 @@ import { PhotosProvider } from './hooks/usePhotos'
 import { useLobby } from './hooks/useLobby'
 import { usePrefs } from './hooks/usePrefs'
 import { useTrip } from './hooks/useTrip'
+import { useReminders } from './hooks/useReminders'
 import { useTheme } from './hooks/useTheme'
 import { existingHome, homePlace, homeTrip, homeTripFromHere } from './lib/home'
 import { adviseSchedule, buildTimeline } from './lib/schedule'
@@ -87,6 +88,7 @@ export default function App() {
   const nowMin = nowMinJst(now)
   const timeline = useMemo(() => buildTimeline(itin.state, nowMin), [itin.state, nowMin])
   const advice = useMemo(() => adviseSchedule(itin.state, timeline), [itin.state, timeline])
+  useReminders(timeline, itin.state.date, prefs.prefs.alerts)
   const trip = useMemo(() => homeTrip(itin.state, timeline, nowMin), [itin.state, timeline, nowMin])
   const gpsLive = geo.status === 'active' && !geo.outsideTokyo ? geo.position : null
   const hereTrip = useMemo(() => (gpsLive ? homeTripFromHere(itin.state, gpsLive, nowMin) : null), [itin.state, gpsLive, nowMin])
@@ -226,7 +228,7 @@ export default function App() {
           onClose={() => setShareOpen(false)}
         />
       )}
-      {settingsOpen && <SettingsSheet geo={geo} itin={itin} prefs={prefs} theme={theme} onPlanNew={planNew} onClose={() => setSettingsOpen(false)} />}
+      {settingsOpen && <SettingsSheet tripDays={tripPlan.days} geo={geo} itin={itin} prefs={prefs} theme={theme} onPlanNew={planNew} onClose={() => setSettingsOpen(false)} />}
       {showWizard && (
         <PlanWizard
           geo={geo}

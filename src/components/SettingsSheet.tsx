@@ -1,4 +1,4 @@
-import { Home, Moon, RotateCcw, Sparkles, Sun, SunMoon } from 'lucide-react'
+import { CalendarPlus, Home, Moon, RotateCcw, Sparkles, Sun, SunMoon } from 'lucide-react'
 import { useState } from 'react'
 import type { Geo } from '../hooks/useGeolocation'
 import type { ItineraryApi } from '../hooks/useItinerary'
@@ -6,11 +6,14 @@ import type { PrefsApi } from '../hooks/usePrefs'
 import { CURRENCIES } from '../lib/fx'
 import { homePlace } from '../lib/home'
 import { DIET_LABEL, INTEREST_LABEL, INTERESTS, type Diet } from '../lib/prefs'
-import type { LuupPlan, ThemePref } from '../types'
+import { enableReminders, reminderSupport } from '../hooks/useReminders'
+import { downloadIcs } from '../lib/calendar'
+import type { ItineraryState, LuupPlan, ThemePref } from '../types'
 import { PlaceSearch } from './PlaceSearch'
 import { Button, Card, SectionTitle, Sheet } from './ui'
 
 interface Props {
+  tripDays: ItineraryState[]
   geo: Geo
   itin: ItineraryApi
   prefs: PrefsApi
@@ -25,8 +28,9 @@ const LUUPS: { id: LuupPlan; label: string }[] = [
   { id: 'sub', label: 'Subscription' },
 ]
 
-export function SettingsSheet({ geo, itin, prefs, theme, onPlanNew, onClose }: Props) {
+export function SettingsSheet({ tripDays, geo, itin, prefs, theme, onPlanNew, onClose }: Props) {
   const [editHome, setEditHome] = useState(false)
+  const support = reminderSupport()
   const home = homePlace(itin.state)
   const seg = (active: boolean) => `rounded-xl py-2 text-[14px] font-semibold ${active ? 'bg-accent text-white' : 'text-muted'}`
 
@@ -82,6 +86,38 @@ export function SettingsSheet({ geo, itin, prefs, theme, onPlanNew, onClose }: P
             )
           })}
         </div>
+
+        <SectionTitle>Reminders</SectionTitle>
+        <Card className="p-4 space-y-3">
+          <Button variant="primary" className="w-full" onClick={() => downloadIcs(tripDays)}>
+            <CalendarPlus size={18} /> Add {tripDays.length > 1 ? 'trip' : 'plan'} to Calendar
+          </Button>
+          <p className="text-[13px] text-muted">Most reliable: your phone's Calendar alerts you 10 minutes before each time to leave, even with this app closed.</p>
+          <label className="flex items-center justify-between gap-3">
+            <span>
+              <span className="block font-semibold">Leave-by alerts in the app</span>
+              <span className="block text-[13px] text-muted">
+                {support === 'needs-install'
+                  ? 'On iPhone, add the app to your Home Screen first (Share → Add to Home Screen), then turn this on.'
+                  : support === 'denied'
+                    ? 'Notifications are blocked: allow them in iPhone Settings → Notifications.'
+                    : support === 'unsupported'
+                      ? 'This browser cannot show notifications.'
+                      : 'Best effort: fires while the app is open or was used recently.'}
+              </span>
+            </span>
+            <input
+              type="checkbox"
+              disabled={support !== 'ok'}
+              checked={prefs.prefs.alerts && support === 'ok'}
+              onChange={async (e) => {
+                if (!e.target.checked) return prefs.update({ alerts: false })
+                prefs.update({ alerts: await enableReminders() })
+              }}
+              className="size-6 shrink-0 accent-[#0a84ff]"
+            />
+          </label>
+        </Card>
 
         <SectionTitle>Food needs</SectionTitle>
         <div className="flex flex-wrap gap-2">
