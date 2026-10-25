@@ -9,7 +9,7 @@ type Variant = 'primary' | 'secondary' | 'ghost' | 'luup' | 'danger'
 
 const VARIANTS: Record<Variant, string> = {
   primary: 'bg-accent text-white active:opacity-80',
-  secondary: 'bg-card-2 active:opacity-70',
+  secondary: 'bg-fill active:opacity-70',
   ghost: 'active:opacity-60',
   luup: 'bg-luup text-white active:opacity-80',
   danger: 'bg-bad/10 text-bad active:opacity-70',

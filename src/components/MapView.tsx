@@ -36,7 +36,9 @@ export function MapView({ visible, geo, state, timeline, focus, online }: Props)
   // Create the map once.
   useEffect(() => {
     if (!el.current || map.current) return
-    const m = L.map(el.current, { zoomControl: false, attributionControl: true }).setView(TOKYO, 12)
+    const m = L.map(el.current, { zoomControl: false, attributionControl: false }).setView(TOKYO, 12)
+    // Bottom-right is covered by the tab bar, so credit OpenStreetMap at the top.
+    L.control.attribution({ position: 'topleft', prefix: false }).addTo(m)
     const tiles = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
