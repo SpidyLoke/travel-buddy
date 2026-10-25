@@ -1,25 +1,24 @@
 # Tokyo Day: travel companion
 
-Mobile-first web app for a one-day Tokyo route (Horikiri → Skytree → Asakusa → Akihabara → Ginza → Tokyo Tower → Harajuku → Shibuya → Shinjuku) by train, LUUP and on foot. Built for iPhone Safari, installable to the home screen.
+Mobile-first web app that plans a day in Tokyo around what you like and then navigates it: which train line and direction, where to get off, when LUUP or walking is better, what's around you, and how to get back to where you're staying. Built for iPhone Safari, installable to the home screen, no account, no API keys, everything stored on the phone.
 
 Live site: **https://spidyloke.github.io/travel-buddy/**
 
 ## What it does
 
-- **Home**: Japan time, GPS position, next stop, which line/direction/stop to use, the next action, and Navigate / train-instruction buttons. Recommended mode (train / LUUP / walk) with the reason and price for every leg. Schedule advice ("running 40 min behind, skip Ginza to reach Harajuku before shops close"). Notices when you are away from where a leg starts and switches to live directions. GPS stop/resume.
-- **Map**: OpenStreetMap + Leaflet, blue-dot location, numbered stops (next / done / upcoming / skipped), stations for upcoming train legs, and a walking route (OpenStreetMap foot routing via routing.openstreetmap.de) to the next stop or boarding station. Falls back to straight lines if routing is unreachable. No route is drawn for LUUP.
-- **Itinerary**: mark visited, skip, restore, reorder, add, remove, change visit length, start and end time, and transport. New places are inserted where they add the least detour. Daily transport total. Destination guide for 16 places with train/walk navigation, map and copy-Japanese-name buttons.
-- **Don Quijote**: Home card picks the Donki that costs least time given what's left of your day (Shinjuku Kabukichō, else MEGA Shibuya), with when you'll be there, walking directions and a done tick. "Donki nearby" chips on those stops, 🛍 pins on the map.
-- **Nearby** tab: live search for any place or address (Photon / OpenStreetMap) and what's around you or your next stop by category: landmarks (Wikipedia, with credited photos), Don Quijote, konbini, food, ramen, cafés, toilets, ATMs, drugstores, coin lockers, souvenirs, stations (OpenStreetMap via Overpass). Any result can be walked/trained to, added to the day, pinned on the map or set as home. Nothing here needs code changes to update.
-- **Where am I?** shows the actual street / neighbourhood (reverse geocoding), not just the nearest planned stop.
-- **Going home**: route back to Horikiri Station after Shinjuku (Yamanote → Chiyoda → Tobu, step by step), leave and arrival estimates, a last-train risk warning, live directions and a taxi fallback with the Japanese name to copy. 🏠 button on Home opens it any time, defaulting to *from where you are, now* (with an "end the day here" option); "after the plan" is a toggle. Home can be changed by typing an address or with "Set as home" on any search result.
-- **Photos**: each place shows the lead image of its English Wikipedia article, restricted to freely licensed files, with author and licence credited from Wikimedia Commons. Fetched in two requests, cached for a week; seen images are cached offline.
-- **Train Guide**: Suica in Apple Wallet, gates, directions, platforms, transfers, exits, station codes, wrong train, low balance, sign glossary, LUUP rules.
-- Progress and preferences persist in `localStorage`. After the first load, the app shell works offline (PWA); map tiles you've already viewed are cached.
+- **First-run setup** (about a minute): where you're staying (search or current location), date and hours, interests, pace, LUUP plan (none / pay per ride / subscription), optional must-sees, then a generated day plan to accept or reshuffle. "Plan a new day" any time from Settings or the Itinerary tab; places visited on earlier days can be skipped.
+- **Planner** (`src/lib/planner.ts`): scores ~35 destinations by popularity and your interests, inserts the best ones where they add the least travel, and keeps the day feasible against typical opening hours, closed days (e.g. Imperial Palace East Gardens on Mon/Fri, Tsukiji on Sun/Wed) and your finish time. Time-of-day aware: shrines and markets early, views at dusk, nightlife late. One stop per area, then a reordering pass to remove zigzags.
+- **Home**: Japan time, where you are (street-level), next stop, which line/direction/stop, the next action, Navigate, recommended mode with price and reason, schedule advice, Don Quijote picker when your plan passes one. 🏠 opens the route back to where you're staying from wherever you are.
+- **Map**: your position, numbered stops, stations for upcoming train legs, walking route (OpenStreetMap foot routing), found places pinned.
+- **Nearby**: live search for any place and categories around you or your next stop (landmarks with photos, Don Quijote, konbini, food, ramen, cafés, toilets, ATMs, drugstores, lockers, souvenirs, stations). Add any result to the day or set it as home.
+- **Itinerary**: visited / skip / restore, reorder, add, remove, visit length, times, transport, notes on why each stop was picked, transport total. **Destination guide** with "Recommended for you" and interest filters, credited photos.
+- **Trains**: beginner guide (Suica in Apple Wallet, gates, directions, transfers, exits, station codes, wrong train, low balance), sign glossary, etiquette, LUUP rules.
+- **Settings**: home, LUUP plan, interests, theme, start over.
+- Offline: app shell, saved plan and previously viewed map tiles and photos.
 
 ### Prices
 
-Train prices are adult Suica (IC) fares by each operator's distance band, checked October 2026 (Tobu, Tokyo Metro, Toei, JR East after its 14 March 2026 revision). Fares marked `~` sit near a band edge. LUUP is priced at the subscription rate, ¥200 per started 30 minutes; change `LUUP_BLOCK_YEN` / `LUUP_BLOCK_MIN` in `src/lib/pricing.ts` if that changes.
+Train prices are adult Suica (IC) fares by each operator's distance band, checked October 2026 (Tobu, Tokyo Metro, Toei, JR East after its 14 March 2026 revision), for the hand-written routes; elsewhere Google Maps shows the fare. Fares marked `~` sit near a band edge. LUUP follows your plan: subscription ¥200 per started 30 minutes, pay per ride shown as approximate (~¥50 + ¥25/min, Tokyo rate changed 1 Sep 2026). Constants live in `src/lib/pricing.ts`.
 
 ### What it deliberately does not do
 
@@ -53,9 +52,13 @@ Open the site in Safari → Share → **Add to Home Screen**. Allow location whe
 
 ```
 src/
-  data/places.ts      destinations, Japanese names, typical hours
+  data/places.ts      core destinations, Japanese names, typical hours
+  data/morePlaces.ts  extra destinations for the planner and guide
   data/legs.ts        hand-written train routes (line, direction, stops, exits)
   data/itinerary.ts   default day plan
+  lib/planner.ts      day planner and recommendation scoring
+  lib/prefs.ts        settings (LUUP plan, interests, pace)
+  lib/nearby.ts       live search / nearby (Photon, Overpass, Wikipedia)
   lib/schedule.ts     timeline, delay projection, skip advice
   lib/maps.ts         Google Maps URL builders, LUUP link
   lib/pricing.ts      fares, LUUP cost, per-leg recommendation

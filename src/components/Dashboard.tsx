@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { Check, Crosshair, Home, Share, X, ListChecks, LocateFixed, Navigation, SkipForward, SunMoon, Moon, Sun, WifiOff } from 'lucide-react'
+import { Check, Crosshair, Home, Settings, Share, Sparkles, X, ListChecks, LocateFixed, Navigation, SkipForward, WifiOff } from 'lucide-react'
 import { findTrainLeg } from '../data/legs'
 import { PLACES, placeLabel } from '../data/places'
 import type { Geo } from '../hooks/useGeolocation'
@@ -12,8 +12,8 @@ import { reverseGeocode } from '../lib/nearby'
 import { costFor, recommend } from '../lib/pricing'
 import { load, save } from '../lib/storage'
 import type { Advice, Timeline } from '../lib/schedule'
-import { fmtDuration, fmtMin, jstClock, jstDateLabel } from '../lib/time'
-import type { LatLng, Place, ThemePref } from '../types'
+import { dateLabel, fmtDuration, fmtMin, jstClock, jstDateLabel, planDayStatus } from '../lib/time'
+import type { LatLng, Place } from '../types'
 import { buildTrainSteps, LineSummary, MODE_META } from './Journey'
 import { DonkiCard } from './Donki'
 import { LocationHelp } from './LocationHelp'
@@ -26,7 +26,8 @@ interface Props {
   timeline: Timeline
   advice: Advice
   online: boolean
-  theme: { pref: ThemePref; cycle: () => void }
+  openSettings: () => void
+  planNew: () => void
   openJourney: () => void
   showOnMap: (p: Place) => void
   trip: HomeTrip
@@ -36,7 +37,7 @@ interface Props {
 /** Within this radius of the next stop we treat the user as having arrived. */
 const ARRIVED_KM = 0.35
 
-export function Dashboard({ now, geo, itin, timeline, advice, online, theme, openJourney, showOnMap, trip, openHome }: Props) {
+export function Dashboard({ now, geo, itin, timeline, advice, online, openSettings, planNew, openJourney, showOnMap, trip, openHome }: Props) {
   const cur = timeline.nextIndex >= 0 ? timeline.entries[timeline.nextIndex] : undefined
   const total = timeline.entries.length
   const done = timeline.entries.filter((e) => e.stop.status === 'done').length
@@ -44,7 +45,7 @@ export function Dashboard({ now, geo, itin, timeline, advice, online, theme, ope
 
   const street = useStreetName(geo.status === 'active' && !geo.outsideTokyo ? pos : null, online)
   const nearest = pos
-    ? PLACES.map((p) => ({ p, d: distanceKm(pos, p) })).sort((a, b) => a.d - b.d)[0]
+    ? PLACES.filter((p) => !p.hidden).map((p) => ({ p, d: distanceKm(pos, p) })).sort((a, b) => a.d - b.d)[0]
     : null
   const distToNext = pos && cur ? distanceKm(pos, cur.place) : null
   const arrived = distToNext != null && distToNext < ARRIVED_KM
@@ -60,9 +61,9 @@ export function Dashboard({ now, geo, itin, timeline, advice, online, theme, ope
     : cur && leg && mode === 'train'
       ? buildTrainSteps(leg, cur.place)[0]?.title
       : undefined
+  const day = planDayStatus(itin.state.date, now)
   const rec = cur ? recommend(cur.prev, cur.place) : null
   const cost = cur ? costFor(cur.prev, cur.place, mode) : null
-  const ThemeIcon = theme.pref === 'dark' ? Moon : theme.pref === 'light' ? Sun : SunMoon
 
   return (
     <div className="pt-safe bottom-nav-space px-4 space-y-3">
@@ -80,13 +81,26 @@ export function Dashboard({ now, geo, itin, timeline, advice, online, theme, ope
           <button aria-label="Route home" onClick={openHome} className="size-10 grid place-items-center rounded-full bg-card">
             <Home size={18} />
           </button>
-          <button aria-label={`Theme: ${theme.pref}`} onClick={theme.cycle} className="size-10 grid place-items-center rounded-full bg-card">
-            <ThemeIcon size={18} />
+          <button aria-label="Settings" onClick={openSettings} className="size-10 grid place-items-center rounded-full bg-card">
+            <Settings size={18} />
           </button>
         </div>
       </header>
 
       <InstallHint />
+
+      {(day === 'future' || day === 'past') && (
+        <Notice
+          tone={day === 'future' ? 'info' : 'warn'}
+          action={
+            <Button className="min-h-9 px-3 text-[13px]" onClick={planNew}>
+              {day === 'past' ? 'Plan new day' : 'Re-plan'}
+            </Button>
+          }
+        >
+          {day === 'future' ? `Showing your plan for ${dateLabel(itin.state.date!)}. Times assume that day.` : `This plan was for ${dateLabel(itin.state.date!)}.`}
+        </Notice>
+      )}
 
       {/* Progress */}
       <div>
@@ -280,6 +294,9 @@ export function Dashboard({ now, geo, itin, timeline, advice, online, theme, ope
           </LinkButton>
           <Button className="w-full" onClick={openHome}>
             <ListChecks size={18} /> Steps, last train &amp; taxi
+          </Button>
+          <Button className="w-full" onClick={planNew}>
+            <Sparkles size={18} /> Plan another day
           </Button>
         </Card>
       )}

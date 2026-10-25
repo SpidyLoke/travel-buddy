@@ -25,6 +25,12 @@ export function homePlace(state: ItineraryState): Place {
   }
 }
 
+/** Current home as a starting point for a new plan, if it has a location. */
+export function existingHome(state: ItineraryState): Place | null {
+  const h = homePlace(state)
+  return hasCoords(h) ? { ...h, label: undefined } : null
+}
+
 export const hasCoords = (p: Place) => Number.isFinite(p.lat) && Number.isFinite(p.lng)
 
 export interface HomeTrip {

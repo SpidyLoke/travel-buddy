@@ -223,7 +223,7 @@ export const LEGS: Leg[] = [
   {
     from: 'tokyotower',
     to: 'takeshita',
-    why: 'About 6 km through Roppongi and Aoyama in evening traffic and fading light. The train is safer and cheaper than two LUUP blocks.',
+    why: 'About 6 km through Roppongi and Aoyama in evening traffic and fading light. The train is safer and cheaper than a long LUUP ride.',
     trainFareYen: 209,
     fareApprox: true,
     estimateMin: { train: 45 },
@@ -349,7 +349,7 @@ export const LEGS: Leg[] = [
   {
     from: 'akihabara',
     to: 'tokyotower',
-    why: 'One train all the way to Kamiyachō, no transfer. Too far for one LUUP block.',
+    why: 'One train all the way to Kamiyachō, no transfer.',
     trainFareYen: 209,
     fareApprox: true,
     estimateMin: { train: 30 },
@@ -507,7 +507,7 @@ export const LEGS: Leg[] = [
   {
     from: 'tokyotower',
     to: 'roppongi',
-    why: 'Short ride with no transfer worries, one ¥200 block.',
+    why: 'Short ride straight there, no transfers.',
     trainFareYen: 178,
     fareApprox: true,
     estimateMin: { train: 15, luup: 12, walk: 25 },
@@ -531,7 +531,7 @@ export const LEGS: Leg[] = [
   {
     from: 'roppongi',
     to: 'takeshita',
-    why: 'About 3.5 km along Aoyama roads, one ¥200 block. By train it takes two lines and two operators.',
+    why: 'About 3.5 km along Aoyama roads. By train it takes two lines and two operators.',
     estimateMin: { luup: 20, train: 30 },
     distanceKm: 3.5,
     recommended: 'luup',

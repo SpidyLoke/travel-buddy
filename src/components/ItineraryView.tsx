@@ -1,14 +1,16 @@
-import { ArrowDown, ArrowUp, Check, ChevronDown, Clock, ListChecks, MapPin, Minus, Navigation, Plus, RotateCcw, SkipForward, Trash2, Undo2 } from 'lucide-react'
+import { ArrowDown, ArrowUp, Check, ChevronDown, Clock, ListChecks, MapPin, Minus, Navigation, Plus, SkipForward, Sparkles, Trash2, Undo2 } from 'lucide-react'
 import { useState } from 'react'
-import { DEFAULT_ITINERARY } from '../data/itinerary'
 import { getPlace, PLACES, placeLabel } from '../data/places'
 import type { ItineraryApi } from '../hooks/useItinerary'
+import type { Geo } from '../hooks/useGeolocation'
 import type { HomeTrip } from '../lib/home'
+import { scorePlace, whyPlace } from '../lib/planner'
+import { INTEREST_LABEL, INTERESTS, type Prefs } from '../lib/prefs'
 import { directionsUrl, modeToGoogle } from '../lib/maps'
 import { costFor, recommend } from '../lib/pricing'
 import type { Advice, Timeline } from '../lib/schedule'
-import { fmtDuration, fmtMin, parseHm } from '../lib/time'
-import type { ItineraryStop, LatLng, Place, TransportMode } from '../types'
+import { dateLabel, fmtDuration, fmtMin, parseHm } from '../lib/time'
+import type { Interest, ItineraryStop, LatLng, Place, TransportMode } from '../types'
 import { MODE_META } from './Journey'
 import { HomeCard } from './HomeTrip'
 import { PlaceCard } from './PlaceCard'
@@ -25,13 +27,24 @@ interface Props {
   showOnMap: (p: Place) => void
   trip: HomeTrip
   openHome: () => void
+  geo: Geo
+  prefs: Prefs
+  planNew: () => void
 }
 
-export function ItineraryView({ itin, timeline, advice, gps, openJourney, showOnMap, trip, openHome }: Props) {
+export function ItineraryView({ itin, timeline, advice, gps, openJourney, showOnMap, trip, openHome, geo, prefs, planNew }: Props) {
   const [tab, setTab] = useState<'day' | 'places'>('day')
   return (
     <div className="pt-safe bottom-nav-space px-4">
-      <h1 className="pt-2 text-3xl font-bold tracking-tight">{tab === 'day' ? 'My day' : 'Places'}</h1>
+      <div className="flex items-end justify-between gap-3 pt-2">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">{tab === 'day' ? 'My day' : 'Places'}</h1>
+          {tab === 'day' && itin.state.date && <div className="text-[14px] text-muted">{dateLabel(itin.state.date)}</div>}
+        </div>
+        <Button variant="primary" className="min-h-10 px-3 text-[14px]" onClick={planNew}>
+          <Sparkles size={16} /> New plan
+        </Button>
+      </div>
       <div className="mt-3 grid grid-cols-2 rounded-2xl bg-card p-1 text-[15px] font-semibold">
         {(['day', 'places'] as const).map((t) => (
           <button key={t} onClick={() => setTab(t)} className={`rounded-xl py-2 ${tab === t ? 'bg-accent text-white' : 'text-muted'}`}>
@@ -40,15 +53,15 @@ export function ItineraryView({ itin, timeline, advice, gps, openJourney, showOn
         ))}
       </div>
       {tab === 'day' ? (
-        <DayList itin={itin} timeline={timeline} advice={advice} gps={gps} openJourney={openJourney} showOnMap={showOnMap} trip={trip} openHome={openHome} />
+        <DayList itin={itin} timeline={timeline} advice={advice} gps={gps} openJourney={openJourney} showOnMap={showOnMap} trip={trip} openHome={openHome} geo={geo} />
       ) : (
-        <PlacesGuide itin={itin} gps={gps} showOnMap={showOnMap} />
+        <PlacesGuide itin={itin} gps={gps} showOnMap={showOnMap} interests={prefs.interests} />
       )}
     </div>
   )
 }
 
-function DayList({ itin, timeline, advice, gps, openJourney, showOnMap, trip, openHome }: Props) {
+function DayList({ itin, timeline, advice, gps, openJourney, showOnMap, trip, openHome, geo }: Omit<Props, 'prefs' | 'planNew'>) {
   const { state } = itin
   const [startText, setStartText] = useState(fmtMin(state.startMin))
   const [endText, setEndText] = useState(fmtMin(state.endMin))
@@ -139,7 +152,7 @@ function DayList({ itin, timeline, advice, gps, openJourney, showOnMap, trip, op
         ))}
       </ol>
 
-      <HomeCard trip={trip} itin={itin} gps={gps} openHome={openHome} />
+      <HomeCard trip={trip} itin={itin} gps={gps} geo={geo} openHome={openHome} />
 
       <div className="flex justify-between items-center pt-1 px-1">
         <span className="text-[13px] text-muted">
@@ -148,21 +161,9 @@ function DayList({ itin, timeline, advice, gps, openJourney, showOnMap, trip, op
           Transport today ≈ ¥{dayCost.yen.toLocaleString('en-GB')}
           {dayCost.unknown > 0 && ` + ${dayCost.unknown} fare${dayCost.unknown > 1 ? 's' : ''} in Maps`}
         </span>
-        <Button
-          variant="ghost"
-          className="text-bad text-[14px] min-h-9"
-          onClick={() => {
-            if (confirm('Reset the itinerary to the original plan? Visited and skipped marks will be cleared.')) {
-              itin.reset()
-              setStartText(fmtMin(DEFAULT_ITINERARY.startMin))
-              setEndText(fmtMin(DEFAULT_ITINERARY.endMin))
-            }
-          }}
-        >
-          <RotateCcw size={15} /> Reset
-        </Button>
+
       </div>
-      <p className="px-1 text-[12px] text-muted">Times are planning estimates, not train timetables. Add more places from the Destination guide.</p>
+      <p className="px-1 text-[12px] text-muted">Times are planning estimates, not train timetables. Add places from the Destination guide or the Nearby tab.</p>
     </div>
   )
 }
@@ -201,6 +202,7 @@ function StopCard({ stop, index, count, itin, timeline, gps, openJourney, showOn
                 {place.name !== placeLabel(place) ? `${place.name} · ` : ''}
                 {place.nameJa}
               </div>
+              {stop.note && stop.status === 'pending' && <div className="mt-0.5 text-[13px] text-accent">{stop.note}</div>}
             </button>
             <div className="text-right shrink-0">
               {entry ? (
@@ -230,7 +232,7 @@ function StopCard({ stop, index, count, itin, timeline, gps, openJourney, showOn
             <Pill className="bg-card-2">
               <Clock size={13} /> Stay {fmtDuration(stop.durationMin)}
             </Pill>
-            {place.mandatory && <Pill className="bg-accent/12 text-accent">Must-see</Pill>}
+            {stop.must && <Pill className="bg-accent/12 text-accent">Your pick</Pill>}
             <ShopChips stopPlaceId={place.id} />
             {place.closesLabel && <Pill className="bg-warn/15 text-[#a66a00] dark:text-warn">{place.closesLabel}</Pill>}
             <button className="ml-auto text-muted" onClick={() => setOpen((v) => !v)} aria-label="More">
@@ -323,13 +325,58 @@ function StopCard({ stop, index, count, itin, timeline, gps, openJourney, showOn
   )
 }
 
-function PlacesGuide({ itin, gps, showOnMap }: { itin: ItineraryApi; gps: LatLng | null; showOnMap: (p: Place) => void }) {
+function PlacesGuide({ itin, gps, showOnMap, interests }: { itin: ItineraryApi; gps: LatLng | null; showOnMap: (p: Place) => void; interests: Interest[] }) {
+  const [filter, setFilter] = useState<Interest | 'all'>('all')
   const inPlan = new Set(itin.state.stops.map((s) => s.placeId))
+  const visible = PLACES.filter((p) => !p.hidden && p.id !== itin.state.startPlaceId && !p.custom)
+  const recommended = visible
+    .filter((p) => p.tags?.length && p.kind !== 'shop' && !inPlan.has(p.id))
+    .sort((a, b) => scorePlace(b, interests) - scorePlace(a, interests))
+    .slice(0, 5)
+  const list = filter === 'all' ? visible : visible.filter((p) => p.tags?.includes(filter))
+
   return (
     <div>
-      <SectionTitle>Tokyo highlights</SectionTitle>
+      <SectionTitle>Recommended for you</SectionTitle>
+      <p className="px-1 -mt-1 mb-2 text-[13px] text-muted">
+        {interests.length ? `Based on ${interests.map((i) => INTEREST_LABEL[i]).join(', ')}.` : 'Tokyo classics. Set interests in Settings to personalise.'} Not already in your day.
+      </p>
+      <div className="-mx-4 overflow-x-auto px-4 [scrollbar-width:none]">
+        <div className="flex gap-3 w-max pb-1">
+          {recommended.map((p) => (
+            <Card key={p.id} className="w-64 p-3 space-y-2 shrink-0">
+              <PlacePhoto place={p} />
+              <div className="font-bold leading-tight">{p.name}</div>
+              <div className="text-[13px] text-accent">{whyPlace(p, interests)}</div>
+              <div className="grid grid-cols-2 gap-2">
+                <Button variant="primary" className="min-h-10 px-2 text-[14px]" onClick={() => itin.add(p.id)}>
+                  <Plus size={15} /> Add
+                </Button>
+                <Button className="min-h-10 px-2 text-[14px]" onClick={() => showOnMap(p)}>
+                  <MapPin size={15} /> Map
+                </Button>
+              </div>
+            </Card>
+          ))}
+        </div>
+      </div>
+
+      <SectionTitle>All destinations</SectionTitle>
+      <div className="-mx-4 overflow-x-auto px-4 pb-3 [scrollbar-width:none]">
+        <div className="flex gap-2 w-max">
+          {(['all', ...INTERESTS] as const).map((i) => (
+            <button
+              key={i}
+              onClick={() => setFilter(i)}
+              className={`rounded-full px-3.5 py-2 text-[14px] font-semibold ${filter === i ? 'bg-accent text-white' : 'bg-card'}`}
+            >
+              {i === 'all' ? 'All' : INTEREST_LABEL[i]}
+            </button>
+          ))}
+        </div>
+      </div>
       <div className="space-y-3">
-        {PLACES.filter((p) => p.id !== itin.state.startPlaceId).map((p) => (
+        {list.map((p) => (
           <PlaceCard key={p.id} place={p} gps={gps} inPlan={inPlan.has(p.id)} onAdd={() => itin.add(p.id)} onMap={() => showOnMap(p)} />
         ))}
       </div>

@@ -1,5 +1,13 @@
 export type TransportMode = 'train' | 'luup' | 'walk'
 
+export type Interest = 'culture' | 'shopping' | 'anime' | 'food' | 'views' | 'nightlife' | 'nature' | 'quirky'
+
+export type TimeOfDay = 'morning' | 'day' | 'evening' | 'night'
+
+export type Pace = 'relaxed' | 'balanced' | 'packed'
+
+export type LuupPlan = 'none' | 'payg' | 'sub'
+
 export type StopStatus = 'pending' | 'done' | 'skipped'
 
 export interface LatLng {
@@ -36,6 +44,19 @@ export interface Place extends LatLng {
   kind?: 'sight' | 'shop'
   /** Found in the app (search or nearby) rather than built in. */
   custom?: boolean
+  /** Planner metadata. Hours are typical, never live. */
+  tags?: Interest[]
+  /** 1–5: how strongly to recommend to a first-time visitor. */
+  score?: number
+  /** Places in the same group are close together; the planner picks one per group. */
+  group?: string
+  best?: TimeOfDay
+  opensAt?: number
+  /** Days of the week (0 = Sunday) when typically closed or mostly shut. */
+  closedDays?: number[]
+  closedNote?: string
+  /** Not shown in guides or used by the planner (e.g. a personal start point). */
+  hidden?: boolean
 }
 
 export interface Station extends LatLng {
@@ -89,6 +110,10 @@ export interface ItineraryStop {
   durationMin: number
   transport: TransportMode
   status: StopStatus
+  /** The user insisted on this stop: never suggested for skipping. */
+  must?: boolean
+  /** Why the planner picked it. */
+  note?: string
 }
 
 export interface ItineraryState {
@@ -105,6 +130,8 @@ export interface ItineraryState {
   home?: HomeSetting
   /** Places added from search or nearby, so stops can refer to them by id. */
   customPlaces?: Place[]
+  /** YYYY-MM-DD in Japan time. Undefined = whatever day it is. */
+  date?: string
 }
 
 export interface HomeSetting {

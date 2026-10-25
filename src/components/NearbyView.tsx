@@ -261,9 +261,9 @@ function ResultCard({ r, gps, inPlan, onAdd, onHome, onMap }: ResultProps) {
       </div>
       {more && (
         <div className="space-y-2">
-          {r.km > 1 && r.km < 5 && (
+          {r.km > 1 && r.km < 5 && luupCost(luupMin) != null && (
             <p className="text-[13px] text-muted">
-              LUUP: about {luupMin} min, ¥{luupCost(luupMin)} on your plan. Find ports in the LUUP app.
+              LUUP: about {luupMin} min, ~¥{luupCost(luupMin)} on your plan. Find ports in the LUUP app.
             </p>
           )}
           <div className="grid grid-cols-2 gap-2">

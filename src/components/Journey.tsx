@@ -3,7 +3,8 @@ import { findLeg, findTrainLeg } from '../data/legs'
 import { placeLabel } from '../data/places'
 import { formatDistance } from '../lib/geo'
 import { directionsUrl, LUUP_URL } from '../lib/maps'
-import { costFor, luupCost, LUUP_BLOCK_MIN, LUUP_BLOCK_YEN, recommend } from '../lib/pricing'
+import { getPrefs } from '../lib/prefs'
+import { costFor, LUUP_BLOCK_MIN, luupRateLabel, recommend } from '../lib/pricing'
 import { estimateTravel } from '../lib/schedule'
 import { fmtDuration } from '../lib/time'
 import type { LatLng, Leg, Place, TrainSegment, TransportMode } from '../types'
@@ -139,7 +140,7 @@ export function TransportCompare({ from, to, selected, onSelect }: CompareProps)
                 {e.source === 'calc' && '*'}
               </div>
               <div className="text-[12px] text-muted">
-                {m === 'train' ? (leg?.segments.length ? `${leg.segments.length - 1} transfer${leg.segments.length === 2 ? '' : 's'}` : 'Fare in Maps') : m === 'walk' ? (walkTooFar ? 'Long walk' : formatDistance(e.km)) : `¥${LUUP_BLOCK_YEN}/${LUUP_BLOCK_MIN} min`}
+                {m === 'train' ? (leg?.segments.length ? `${leg.segments.length - 1} transfer${leg.segments.length === 2 ? '' : 's'}` : 'Fare in Maps') : m === 'walk' ? (walkTooFar ? 'Long walk' : formatDistance(e.km)) : luupRateLabel()}
               </div>
             </button>
           )
@@ -154,7 +155,7 @@ export function TransportCompare({ from, to, selected, onSelect }: CompareProps)
         )}
       </div>
       <p className="mt-2 px-1 text-[12px] text-muted leading-snug">
-        About {formatDistance(est.train.km)}. Times are planning estimates{Object.values(est).some((e) => e.source === 'calc') ? '; * = calculated from distance' : ''}. Train = adult Suica fare, checked Oct 2026{leg?.fareApprox ? ' (~ = could be one distance band off)' : ''}. LUUP = your subscription, ¥{LUUP_BLOCK_YEN} per started {LUUP_BLOCK_MIN} min.
+        About {formatDistance(est.train.km)}. Times are planning estimates{Object.values(est).some((e) => e.source === 'calc') ? '; * = calculated from distance' : ''}. Train = adult Suica fare, checked Oct 2026{leg?.fareApprox ? ' (~ = could be one distance band off)' : ''}. LUUP = {getPrefs().luup === 'none' ? 'not set up (change in Settings)' : `your plan, ${luupRateLabel()}`}.
       </p>
     </div>
   )
@@ -226,7 +227,7 @@ export function LuupMode({ from, to, origin }: ModeProps) {
       <Card className="p-4">
         <div className="text-[17px] font-semibold">
           Ride about {fmtDuration(e.min)}
-          {e.source === 'calc' && '*'} · ¥{luupCost(e.min)}
+          {e.source === 'calc' && '*'} · {costFor(from, to, 'luup').label}
         </div>
         <div className="mt-1 text-[15px] text-muted">
           {leg?.luupNote ?? `Roughly ${formatDistance(e.km)} by road. Find a port near you in the LUUP app and pick a return port near ${placeLabel(to)} before you unlock.`}
@@ -247,7 +248,7 @@ export function LuupMode({ from, to, origin }: ModeProps) {
       </LinkButton>
       <p className="px-1 text-[12px] text-muted flex gap-1.5">
         <Info size={14} className="shrink-0 mt-0.5" />
-        This app has no scooter-legal routing or live scooter/port data. Google opens in cycling mode; if it falls back to walking paths, stay on roads. Port locations and availability are only in the LUUP app. Price assumes your subscription rate; going past {LUUP_BLOCK_MIN} min starts another block.
+        This app has no scooter-legal routing or live scooter/port data. Google opens in cycling mode; if it falls back to walking paths, stay on roads. Port locations and availability are only in the LUUP app. {getPrefs().luup === 'sub' ? `Price assumes your subscription; going past ${LUUP_BLOCK_MIN} min starts another block.` : getPrefs().luup === 'payg' ? 'Pay-as-you-go price is approximate: the app shows the exact rate before you unlock.' : 'You have not set up LUUP: sign up in the LUUP app (ID check and a short rules quiz) before your first ride.'}
       </p>
     </div>
   )

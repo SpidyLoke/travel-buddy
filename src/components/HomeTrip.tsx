@@ -1,7 +1,7 @@
 import { Flag, Home, Moon, Navigation, Pencil } from 'lucide-react'
 import { useState } from 'react'
-import { DEFAULT_HOME } from '../data/itinerary'
 import { placeLabel } from '../data/places'
+import type { Geo } from '../hooks/useGeolocation'
 import type { ItineraryApi } from '../hooks/useItinerary'
 import { hasCoords, LATE_LEAVE_MIN, type HomeTrip } from '../lib/home'
 import { recommend } from '../lib/pricing'
@@ -9,6 +9,7 @@ import { directionsUrl } from '../lib/maps'
 import { fmtDuration, fmtMin } from '../lib/time'
 import type { LatLng, TransportMode } from '../types'
 import { CopyJaButton } from './CopyJaButton'
+import { PlaceSearch } from './PlaceSearch'
 import { ModeContent, TrainMode, TransportCompare } from './Journey'
 import { Button, Card, LinkButton, Notice, Sheet } from './ui'
 
@@ -112,11 +113,9 @@ export function HomeSheet({ planTrip, hereTrip, gps, pendingStops, onEndDay, onC
   )
 }
 
-/** Card at the end of the itinerary list, with an editable home address. */
-export function HomeCard({ trip, itin, gps, openHome }: { trip: HomeTrip; itin: ItineraryApi; gps: LatLng | null; openHome: () => void }) {
+/** Card at the end of the itinerary list, with an editable home. */
+export function HomeCard({ trip, itin, gps, geo, openHome }: { trip: HomeTrip; itin: ItineraryApi; gps: LatLng | null; geo: Geo; openHome: () => void }) {
   const [editing, setEditing] = useState(false)
-  const [text, setText] = useState('')
-  const isDefault = trip.home.id === DEFAULT_HOME.placeId
 
   return (
     <Card className="p-4 space-y-3">
@@ -135,39 +134,18 @@ export function HomeCard({ trip, itin, gps, openHome }: { trip: HomeTrip; itin: 
       </div>
       <LateWarning trip={trip} />
       {editing ? (
-        <form
-          className="space-y-2"
-          onSubmit={(e) => {
-            e.preventDefault()
-            const v = text.trim()
-            if (v) itin.setHome({ name: v, query: v })
-            setEditing(false)
-          }}
-        >
-          <input
-            autoFocus
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder="Hotel name or address"
-            className="w-full rounded-xl bg-card-2 px-3 py-2.5 text-[16px]"
+        <div className="space-y-2">
+          <PlaceSearch
+            geo={geo}
+            onPick={(p) => {
+              itin.setHome({ name: p.name, query: p.mapsQuery, lat: p.lat, lng: p.lng })
+              setEditing(false)
+            }}
           />
-          <div className="grid grid-cols-2 gap-2">
-            <Button type="submit" variant="primary" className="text-[14px]">
-              Save
-            </Button>
-            <Button
-              type="button"
-              className="text-[14px]"
-              onClick={() => {
-                itin.setHome(DEFAULT_HOME)
-                setEditing(false)
-              }}
-            >
-              Use Horikiri Station
-            </Button>
-          </div>
-          <p className="text-[12px] text-muted">A custom address gets live Google Maps directions; step-by-step is only written for Horikiri.</p>
-        </form>
+          <Button className="w-full text-[14px]" onClick={() => setEditing(false)}>
+            Cancel
+          </Button>
+        </div>
       ) : (
         <div className="grid grid-cols-3 gap-2">
           <LinkButton variant="primary" className="px-2 text-[14px]" href={directionsUrl(trip.home, 'transit', gps ?? trip.from)}>
@@ -176,13 +154,7 @@ export function HomeCard({ trip, itin, gps, openHome }: { trip: HomeTrip; itin: 
           <Button className="px-2 text-[14px]" onClick={openHome}>
             Steps
           </Button>
-          <Button
-            className="px-2 text-[14px]"
-            onClick={() => {
-              setText(isDefault ? '' : trip.home.name)
-              setEditing(true)
-            }}
-          >
+          <Button className="px-2 text-[14px]" onClick={() => setEditing(true)}>
             <Pencil size={15} /> Change
           </Button>
         </div>

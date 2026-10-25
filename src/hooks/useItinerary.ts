@@ -7,6 +7,10 @@ import { load, save } from '../lib/storage'
 import type { HomeSetting, ItineraryState, ItineraryStop, Place, StopStatus, TransportMode } from '../types'
 
 const KEY = 'tokyo-day:itinerary:v1'
+const VISITED_KEY = 'tokyo-day:visited:v1'
+
+/** Place ids marked visited on any day, so new plans can skip them. */
+export const loadVisited = (): string[] => load<string[]>(VISITED_KEY, [])
 
 function sanitise(s: ItineraryState): ItineraryState {
   if (!s || s.version !== 1 || !Array.isArray(s.stops)) return DEFAULT_ITINERARY
@@ -46,11 +50,15 @@ export function useItinerary() {
   }, [])
 
   const setStatus = useCallback((id: string, status: StopStatus) => {
-    setState((s) => ({
+    setState((s) => {
+      const placeId = s.stops.find((st) => st.id === id)?.placeId
+      if (status === 'done' && placeId) save(VISITED_KEY, [...new Set([...loadVisited(), placeId])])
+      return {
       ...s,
       lastDepartedAt: status === 'done' ? Date.now() : s.lastDepartedAt,
       stops: s.stops.map((st) => (st.id === id ? { ...st, status } : st)),
-    }))
+      }
+    })
   }, [])
 
   const move = useCallback((id: string, dir: -1 | 1) => {
@@ -103,9 +111,15 @@ export function useItinerary() {
     setState((s) => ({ ...s, stops: s.stops.map((st) => (st.status === 'pending' ? { ...st, transport } : st)) }))
   }, [])
   const setHome = useCallback((home: HomeSetting) => setState((s) => ({ ...s, home })), [])
+  /** Swap in a freshly planned day. */
+  const replace = useCallback((next: ItineraryState) => {
+    next.customPlaces?.forEach(registerPlace)
+    setState(next)
+  }, [])
+
   const reset = useCallback(() => setState(DEFAULT_ITINERARY), [])
 
-  return { state, updateStop, setStatus, move, add, remove, setStart, setEnd, setAllTransport, setHome, addCustom, skipRemaining, reset }
+  return { state, updateStop, setStatus, move, add, remove, setStart, setEnd, setAllTransport, setHome, addCustom, skipRemaining, replace, reset }
 }
 
 export type ItineraryApi = ReturnType<typeof useItinerary>

@@ -39,3 +39,26 @@ export function parseHm(v: string): number | null {
   if (h > 23 || min > 59) return null
   return h * 60 + min
 }
+
+/** Today's date in Japan as YYYY-MM-DD. */
+export function todayJst(date = new Date()): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(date)
+}
+
+/** 0 = Sunday, for a YYYY-MM-DD date. */
+export function weekdayOf(ymd: string): number {
+  // Noon in Japan is 03:00 UTC on the same date.
+  return new Date(`${ymd}T03:00:00Z`).getUTCDay()
+}
+
+export function dateLabel(ymd: string): string {
+  return new Intl.DateTimeFormat('en-GB', { timeZone: 'UTC', weekday: 'short', day: 'numeric', month: 'short' }).format(new Date(`${ymd}T03:00:00Z`))
+}
+
+export type PlanDay = 'today' | 'future' | 'past' | 'undated'
+
+export function planDayStatus(ymd: string | undefined, now = new Date()): PlanDay {
+  if (!ymd) return 'undated'
+  const t = todayJst(now)
+  return ymd === t ? 'today' : ymd > t ? 'future' : 'past'
+}

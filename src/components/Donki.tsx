@@ -17,6 +17,9 @@ export const DONKI_AT: { stopPlaceId: string; storeId: string; walk: string }[] 
 
 const DONE_KEY = 'tokyo-day:donki-done'
 
+/** A new plan starts with Donki not yet done. */
+export const resetDonki = () => save(DONE_KEY, false)
+
 interface Props {
   timeline: Timeline
   gps: LatLng | null
@@ -39,6 +42,8 @@ export function DonkiCard({ timeline, gps, showOnMap }: Props) {
   const best =
     planned[0] ?? (gps ? [...options].sort((a, b) => distanceKm(gps, a.store) - distanceKm(gps, b.store))[0] : options[0])
   const backup = planned.find((o) => o !== best)
+  // Only for plans that pass a store; the Nearby tab finds Donki anywhere else.
+  if (!planned.length) return null
 
   if (done) {
     return (

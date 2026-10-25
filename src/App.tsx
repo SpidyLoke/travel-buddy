@@ -6,14 +6,18 @@ import { HomeSheet } from './components/HomeTrip'
 import { JourneySheet } from './components/JourneySheet'
 import { MapView } from './components/MapView'
 import { NearbyView } from './components/NearbyView'
+import { PlanWizard } from './components/PlanWizard'
+import { SettingsSheet } from './components/SettingsSheet'
+import { resetDonki } from './components/Donki'
 import { TrainGuide } from './components/TrainGuide'
 import { useGeolocation } from './hooks/useGeolocation'
-import { useItinerary } from './hooks/useItinerary'
+import { loadVisited, useItinerary } from './hooks/useItinerary'
 import { useNow } from './hooks/useNow'
 import { useOnline } from './hooks/useOnline'
 import { PhotosProvider } from './hooks/usePhotos'
+import { usePrefs } from './hooks/usePrefs'
 import { useTheme } from './hooks/useTheme'
-import { homeTrip, homeTripFromHere } from './lib/home'
+import { existingHome, homeTrip, homeTripFromHere } from './lib/home'
 import { adviseSchedule, buildTimeline } from './lib/schedule'
 import { nowMinJst } from './lib/time'
 import type { Place } from './types'
@@ -27,6 +31,10 @@ export default function App() {
   const itin = useItinerary()
   const online = useOnline()
   const theme = useTheme()
+  const prefs = usePrefs()
+  const [wizard, setWizard] = useState<'new' | null>(null)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const showWizard = !prefs.prefs.onboarded || wizard !== null
 
   const nowMin = nowMinJst(now)
   const timeline = useMemo(() => buildTimeline(itin.state, nowMin), [itin.state, nowMin])
@@ -46,6 +54,11 @@ export default function App() {
   const journey = journeyStopId ? timeline.entries.find((e) => e.stop.id === journeyStopId) : undefined
   const gps = geo.status === 'active' && !geo.outsideTokyo ? geo.position : null
 
+  const planNew = () => {
+    setSettingsOpen(false)
+    setWizard('new')
+  }
+
   const showOnMap = (p: Place) => {
     setFocus({ ...p })
     setTab('map')
@@ -62,7 +75,8 @@ export default function App() {
           timeline={timeline}
           advice={advice}
           online={online}
-          theme={theme}
+          openSettings={() => setSettingsOpen(true)}
+          planNew={planNew}
           openJourney={() => timeline.nextIndex >= 0 && setJourneyStopId(timeline.entries[timeline.nextIndex].stop.id)}
           showOnMap={showOnMap}
           trip={hereTrip ?? trip}
@@ -80,6 +94,9 @@ export default function App() {
           showOnMap={showOnMap}
           trip={trip}
           openHome={() => setHomeOpen(true)}
+          geo={geo}
+          prefs={prefs.prefs}
+          planNew={planNew}
         />
       )}
       {tab === 'nearby' && <NearbyView geo={geo} timeline={timeline} itin={itin} online={online} showOnMap={showOnMap} />}
@@ -93,6 +110,25 @@ export default function App() {
         }}
       />
 
+      {settingsOpen && <SettingsSheet geo={geo} itin={itin} prefs={prefs} theme={theme} onPlanNew={planNew} onClose={() => setSettingsOpen(false)} />}
+      {showWizard && (
+        <PlanWizard
+          geo={geo}
+          firstRun={!prefs.prefs.onboarded}
+          initialHome={prefs.prefs.onboarded ? existingHome(itin.state) : null}
+          prefs={prefs.prefs}
+          visited={loadVisited()}
+          onCancel={prefs.prefs.onboarded ? () => setWizard(null) : undefined}
+          onDone={(state, patch) => {
+            prefs.update(patch)
+            itin.replace(state)
+            resetDonki()
+            setWizard(null)
+            setTab('home')
+            window.scrollTo({ top: 0 })
+          }}
+        />
+      )}
       {homeOpen && (
         <HomeSheet
           planTrip={trip}

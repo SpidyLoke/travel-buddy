@@ -1,0 +1,55 @@
+import type { Interest, LuupPlan, Pace } from '../types'
+import { load, save } from './storage'
+
+export interface Prefs {
+  luup: LuupPlan
+  interests: Interest[]
+  pace: Pace
+  /** Finished first-run setup. */
+  onboarded: boolean
+}
+
+const KEY = 'tokyo-day:prefs:v1'
+const LEGACY_ITINERARY_KEY = 'tokyo-day:itinerary:v1'
+
+function initial(): Prefs {
+  const saved = load<Prefs | null>(KEY, null)
+  if (saved) return saved
+  // People who used the app before setup existed: keep their day and their LUUP subscription.
+  const legacy = load<unknown>(LEGACY_ITINERARY_KEY, null) != null
+  return { luup: legacy ? 'sub' : 'none', interests: [], pace: 'balanced', onboarded: legacy }
+}
+
+let current: Prefs = initial()
+
+/** Read anywhere (pricing, planner). Components re-render through usePrefs in App. */
+export const getPrefs = (): Prefs => current
+
+export function writePrefs(p: Prefs): void {
+  current = p
+  save(KEY, p)
+}
+
+/** Runs fn as if prefs had `patch` applied, without saving (e.g. previewing a plan). */
+export function withPrefs<T>(patch: Partial<Prefs>, fn: () => T): T {
+  const before = current
+  current = { ...current, ...patch }
+  try {
+    return fn()
+  } finally {
+    current = before
+  }
+}
+
+export const INTEREST_LABEL: Record<Interest, string> = {
+  culture: 'Temples & culture',
+  shopping: 'Shopping & fashion',
+  anime: 'Anime & games',
+  food: 'Food & markets',
+  views: 'Views',
+  nightlife: 'Nightlife',
+  nature: 'Parks & gardens',
+  quirky: 'Only-in-Tokyo',
+}
+
+export const INTERESTS = Object.keys(INTEREST_LABEL) as Interest[]

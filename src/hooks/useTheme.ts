@@ -19,5 +19,5 @@ export function useTheme() {
     return () => mq.removeEventListener('change', apply)
   }, [pref])
   const cycle = () => setPref((p) => (p === 'system' ? 'light' : p === 'light' ? 'dark' : 'system'))
-  return { pref, cycle }
+  return { pref, cycle, set: setPref }
 }

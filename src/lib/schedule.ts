@@ -2,7 +2,7 @@ import { findLeg } from '../data/legs'
 import { getPlace, placeLabel } from '../data/places'
 import type { ItineraryState, ItineraryStop, Place, TransportMode } from '../types'
 import { distanceKm } from './geo'
-import { fmtMin, nowMinJst } from './time'
+import { dateLabel, fmtMin, nowMinJst, planDayStatus } from './time'
 
 export type EstimateSource = 'plan' | 'calc'
 
@@ -96,7 +96,9 @@ export function buildTimeline(state: ItineraryState, now = nowMinJst()): Timelin
     entries,
     nextIndex,
     delayMin: cur ? cur.projectedDepart - cur.plannedDepart : 0,
-    started: now >= state.startMin || state.stops.some((s) => s.status === 'done'),
+    started:
+      state.stops.some((s) => s.status === 'done') ||
+      ((planDayStatus(state.date) === 'today' || planDayStatus(state.date) === 'undated') && now >= state.startMin),
     projectedEnd: entries.at(-1)?.projectedDepart ?? state.startMin,
     plannedEnd: entries.at(-1)?.plannedDepart ?? state.startMin,
   }
@@ -112,6 +114,9 @@ export interface Advice {
 /** Turns the projected timeline into one recommendation. Based on estimates only. */
 export function adviseSchedule(state: ItineraryState, tl: Timeline): Advice {
   if (tl.nextIndex === -1) return { tone: 'ok', message: 'Day complete. Nice work.' }
+  const day = planDayStatus(state.date)
+  if (day === 'future' && !tl.started) return { tone: 'ok', message: `Planned for ${dateLabel(state.date!)}, starting ${fmtMin(state.startMin)}.` }
+  if (day === 'past' && !tl.started) return { tone: 'warn', message: `This plan was for ${dateLabel(state.date!)}. Plan a new day from the Itinerary tab.` }
   if (!tl.started) return { tone: 'ok', message: `Your day starts at ${fmtMin(state.startMin)} JST.` }
 
   const pending = tl.entries.slice(tl.nextIndex)
@@ -122,7 +127,7 @@ export function adviseSchedule(state: ItineraryState, tl: Timeline): Advice {
   const atRisk = pending.find((e) => e.place.closesAt != null && e.projectedArrive > e.place.closesAt - 30)
   if (atRisk) {
     const skippable = pending
-      .filter((e) => e !== atRisk && !e.place.mandatory && tl.entries.indexOf(e) < tl.entries.indexOf(atRisk))
+      .filter((e) => e !== atRisk && !(e.stop.must || e.place.mandatory) && tl.entries.indexOf(e) < tl.entries.indexOf(atRisk))
       .sort((a, b) => b.stop.durationMin + b.travel.min - (a.stop.durationMin + a.travel.min))
     const pick = skippable[0]
     const target = `${placeLabel(atRisk.place)} before ${atRisk.place.closesLabel ?? 'closing'}`
@@ -139,7 +144,7 @@ export function adviseSchedule(state: ItineraryState, tl: Timeline): Advice {
 
   const overrun = Math.round(tl.projectedEnd - state.endMin)
   if (overrun > 15) {
-    const pick = pending.filter((e) => !e.place.mandatory).sort((a, b) => b.stop.durationMin - a.stop.durationMin)[0]
+    const pick = pending.filter((e) => !(e.stop.must || e.place.mandatory)).sort((a, b) => b.stop.durationMin - a.stop.durationMin)[0]
     return {
       tone: 'warn',
       message: `${behind}Your plan now ends around ${fmtMin(tl.projectedEnd)}, ${overrun} min past ${fmtMin(state.endMin)}.${pick ? ` Consider skipping ${placeLabel(pick.place)}.` : ''}`,
