@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { Check, Crosshair, Home, Settings, Share, Sparkles, X, ListChecks, LocateFixed, Navigation, SkipForward, WifiOff } from 'lucide-react'
+import { Check, Crosshair, Home, JapaneseYen, Settings, Share, Sparkles, X, ListChecks, LocateFixed, Navigation, SkipForward, WifiOff } from 'lucide-react'
 import { findTrainLeg } from '../data/legs'
 import { PLACES, placeLabel } from '../data/places'
 import type { Geo } from '../hooks/useGeolocation'
@@ -9,6 +9,7 @@ import { distanceKm, formatDistance, OFF_ROUTE_KM } from '../lib/geo'
 import { directionsUrl, modeToGoogle } from '../lib/maps'
 import type { HomeTrip } from '../lib/home'
 import { reverseGeocode } from '../lib/nearby'
+import { inHome } from '../lib/fx'
 import { costFor, recommend } from '../lib/pricing'
 import { load, save } from '../lib/storage'
 import type { Advice, Timeline } from '../lib/schedule'
@@ -28,6 +29,7 @@ interface Props {
   advice: Advice
   online: boolean
   openSettings: () => void
+  openConverter: () => void
   planNew: () => void
   openJourney: () => void
   showOnMap: (p: Place) => void
@@ -38,7 +40,7 @@ interface Props {
 /** Within this radius of the next stop we treat the user as having arrived. */
 const ARRIVED_KM = 0.35
 
-export function Dashboard({ now, geo, itin, timeline, advice, online, openSettings, planNew, openJourney, showOnMap, trip, openHome }: Props) {
+export function Dashboard({ now, geo, itin, timeline, advice, online, openSettings, openConverter, planNew, openJourney, showOnMap, trip, openHome }: Props) {
   const cur = timeline.nextIndex >= 0 ? timeline.entries[timeline.nextIndex] : undefined
   const total = timeline.entries.length
   const done = timeline.entries.filter((e) => e.stop.status === 'done').length
@@ -81,6 +83,9 @@ export function Dashboard({ now, geo, itin, timeline, advice, online, openSettin
           )}
           <button aria-label="Route home" onClick={openHome} className="size-10 grid place-items-center rounded-full bg-card">
             <Home size={18} />
+          </button>
+          <button aria-label="Currency converter" onClick={openConverter} className="size-10 grid place-items-center rounded-full bg-card">
+            <JapaneseYen size={18} />
           </button>
           <button aria-label="Settings" onClick={openSettings} className="size-10 grid place-items-center rounded-full bg-card">
             <Settings size={18} />
@@ -207,6 +212,7 @@ export function Dashboard({ now, geo, itin, timeline, advice, online, openSettin
                   <div className="text-[17px] font-semibold">
                     {MODE_META[mode].label} · ~{fmtDuration(cur.travel.min)}
                     {cur.travel.source === 'calc' && '*'} · {cost.label}
+                    <span className="text-muted font-normal">{inHome(cost.yen)}</span>
                   </div>
                   <div className="text-[13px] text-muted">{offRoute ? 'From your current location' : `From ${placeLabel(cur.prev)}`}</div>
                 </div>

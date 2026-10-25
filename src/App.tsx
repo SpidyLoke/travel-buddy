@@ -8,6 +8,9 @@ import { MapView } from './components/MapView'
 import { NearbyView } from './components/NearbyView'
 import { PlanWizard } from './components/PlanWizard'
 import { SettingsSheet } from './components/SettingsSheet'
+import { ConverterSheet } from './components/ConverterSheet'
+import { ImportSheet } from './components/ImportSheet'
+import { ShareSheet } from './components/ShareSheet'
 import { resetDonki } from './components/Donki'
 import { TrainGuide } from './components/TrainGuide'
 import { useGeolocation } from './hooks/useGeolocation'
@@ -21,7 +24,9 @@ import { existingHome, homeTrip, homeTripFromHere } from './lib/home'
 import { adviseSchedule, buildTimeline } from './lib/schedule'
 import { nowMinJst } from './lib/time'
 import { PLACES } from './data/places'
-import type { Place } from './types'
+import { refreshFx } from './lib/fx'
+import { clearIncoming, decodePlan, incomingCode } from './lib/share'
+import type { ItineraryState, Place } from './types'
 
 export default function App() {
   const [tab, setTab] = useState<Tab>('home')
@@ -35,7 +40,23 @@ export default function App() {
   const prefs = usePrefs()
   const [wizard, setWizard] = useState<'new' | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const showWizard = !prefs.prefs.onboarded || wizard !== null
+  const [converterOpen, setConverterOpen] = useState(false)
+  const [shareOpen, setShareOpen] = useState(false)
+
+  // Opened from a shared plan link?
+  const [incoming, setIncoming] = useState<ItineraryState | null>(null)
+  useEffect(() => {
+    const code = incomingCode()
+    if (code) decodePlan(code).then((plan) => (plan ? setIncoming(plan) : clearIncoming()))
+  }, [])
+
+  // Exchange rates: refresh when online; re-render once they arrive.
+  const [, setFxTick] = useState(0)
+  useEffect(() => {
+    if (online) refreshFx().then(() => setFxTick((t) => t + 1))
+  }, [online])
+
+  const showWizard = (!prefs.prefs.onboarded || wizard !== null) && !incoming
 
   const nowMin = nowMinJst(now)
   const timeline = useMemo(() => buildTimeline(itin.state, nowMin), [itin.state, nowMin])
@@ -83,6 +104,7 @@ export default function App() {
           advice={advice}
           online={online}
           openSettings={() => setSettingsOpen(true)}
+          openConverter={() => setConverterOpen(true)}
           planNew={planNew}
           openJourney={() => timeline.nextIndex >= 0 && setJourneyStopId(timeline.entries[timeline.nextIndex].stop.id)}
           showOnMap={showOnMap}
@@ -104,6 +126,7 @@ export default function App() {
           geo={geo}
           prefs={prefs.prefs}
           planNew={planNew}
+          openShare={() => setShareOpen(true)}
         />
       )}
       {tab === 'nearby' && <NearbyView geo={geo} timeline={timeline} itin={itin} online={online} showOnMap={showOnMap} />}
@@ -117,6 +140,24 @@ export default function App() {
         }}
       />
 
+      {incoming && (
+        <ImportSheet
+          plan={incoming}
+          onUse={() => {
+            itin.replace(incoming)
+            prefs.update({ onboarded: true })
+            setIncoming(null)
+            clearIncoming()
+            setTab('itinerary')
+          }}
+          onClose={() => {
+            setIncoming(null)
+            clearIncoming()
+          }}
+        />
+      )}
+      {converterOpen && <ConverterSheet online={online} onClose={() => setConverterOpen(false)} />}
+      {shareOpen && <ShareSheet state={itin.state} onClose={() => setShareOpen(false)} />}
       {settingsOpen && <SettingsSheet geo={geo} itin={itin} prefs={prefs} theme={theme} onPlanNew={planNew} onClose={() => setSettingsOpen(false)} />}
       {showWizard && (
         <PlanWizard

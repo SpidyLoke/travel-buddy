@@ -13,7 +13,9 @@ Live site: **https://spidyloke.github.io/travel-buddy/**
 - **Nearby**: live search for any place and categories around you or your next stop (landmarks with photos, Don Quijote, konbini, food, ramen, cafés, toilets, ATMs, drugstores, lockers, souvenirs, stations). Add any result to the day or set it as home.
 - **Itinerary**: visited / skip / restore, reorder, add, remove, visit length, times, transport, notes on why each stop was picked, transport total. **Destination guide** with "Recommended for you" and interest filters, credited photos.
 - **Trains**: beginner guide (Suica in Apple Wallet, gates, directions, transfers, exits, station codes, wrong train, low balance), sign glossary, etiquette, LUUP rules.
-- **Settings**: home, LUUP plan, interests, theme, start over.
+- **Share**: send a plan as a link or QR code. The plan travels inside the link (compressed, nothing uploaded); opening it on another phone offers to load it.
+- **Currency**: yen ↔ your currency converter (default MYR) with live reference rates (European Central Bank via Frankfurter, fallback ExchangeRate-API), kept for offline use; converted amounts shown next to fares and the day's transport total.
+- **Settings**: home, LUUP plan, interests, currency, theme, start over.
 - Offline: app shell, saved plan and previously viewed map tiles and photos.
 
 ### Prices

@@ -64,6 +64,8 @@ export function buildTimeline(state: ItineraryState, now = nowMinJst()): Timelin
   let plannedT = state.startMin
   let projT = state.startMin
   const nextIndex = active.findIndex((s) => s.status === 'pending')
+  const day = planDayStatus(state.date)
+  const isToday = day === 'today' || day === 'undated'
   const lastDone = state.lastDepartedAt != null ? nowMinJst(new Date(state.lastDepartedAt)) : null
 
   active.forEach((stop, i) => {
@@ -81,8 +83,8 @@ export function buildTimeline(state: ItineraryState, now = nowMinJst()): Timelin
       if (i === nextIndex && i > 0 && lastDone != null) projT = lastDone
       projectedArrive = projT + travel.min
       projectedDepart = projectedArrive + stop.durationMin
-      // You cannot leave the current stop in the past.
-      if (i === nextIndex && now > state.startMin) projectedDepart = Math.max(projectedDepart, now)
+      // You cannot leave the current stop in the past (only meaningful on the day itself).
+      if (i === nextIndex && isToday && now > state.startMin) projectedDepart = Math.max(projectedDepart, now)
     }
 
     entries.push({ stop, place, prev, travel, plannedArrive, plannedDepart, projectedArrive, projectedDepart })
@@ -98,7 +100,7 @@ export function buildTimeline(state: ItineraryState, now = nowMinJst()): Timelin
     delayMin: cur ? cur.projectedDepart - cur.plannedDepart : 0,
     started:
       state.stops.some((s) => s.status === 'done') ||
-      ((planDayStatus(state.date) === 'today' || planDayStatus(state.date) === 'undated') && now >= state.startMin),
+      (isToday && now >= state.startMin),
     projectedEnd: entries.at(-1)?.projectedDepart ?? state.startMin,
     plannedEnd: entries.at(-1)?.plannedDepart ?? state.startMin,
   }

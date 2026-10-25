@@ -3,6 +3,7 @@ import { useState } from 'react'
 import type { Geo } from '../hooks/useGeolocation'
 import type { ItineraryApi } from '../hooks/useItinerary'
 import type { PrefsApi } from '../hooks/usePrefs'
+import { CURRENCIES } from '../lib/fx'
 import { homePlace } from '../lib/home'
 import { INTEREST_LABEL, INTERESTS } from '../lib/prefs'
 import type { LuupPlan, ThemePref } from '../types'
@@ -81,6 +82,22 @@ export function SettingsSheet({ geo, itin, prefs, theme, onPlanNew, onClose }: P
             )
           })}
         </div>
+
+        <SectionTitle>Your currency</SectionTitle>
+        <Card className="p-4 flex items-center justify-between gap-3">
+          <span className="font-semibold">Show prices in</span>
+          <select
+            value={prefs.prefs.currency}
+            onChange={(e) => prefs.update({ currency: e.target.value })}
+            className="bg-card-2 rounded-xl px-3 py-2 text-[16px] font-semibold"
+          >
+            {CURRENCIES.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+        </Card>
 
         <SectionTitle>Appearance</SectionTitle>
         <div className="grid grid-cols-3 rounded-2xl bg-card p-1">

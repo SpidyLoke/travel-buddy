@@ -3,6 +3,7 @@ import { findLeg, findTrainLeg } from '../data/legs'
 import { placeLabel } from '../data/places'
 import { formatDistance } from '../lib/geo'
 import { directionsUrl, LUUP_URL } from '../lib/maps'
+import { homeAmount } from '../lib/fx'
 import { getPrefs } from '../lib/prefs'
 import { costFor, LUUP_BLOCK_MIN, luupRateLabel, recommend } from '../lib/pricing'
 import { estimateTravel } from '../lib/schedule'
@@ -135,6 +136,7 @@ export function TransportCompare({ from, to, selected, onSelect }: CompareProps)
               </div>
               <div className="mt-2 font-semibold">{label}</div>
               <div className="text-[17px] font-bold tabular-nums">{costFor(from, to, m).label}</div>
+              {costFor(from, to, m).yen ? <div className="text-[12px] text-muted tabular-nums">{homeAmount(costFor(from, to, m).yen)}</div> : null}
               <div className="text-[13px] text-muted">
                 ~{fmtDuration(e.min)}
                 {e.source === 'calc' && '*'}

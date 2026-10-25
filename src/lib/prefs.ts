@@ -7,6 +7,8 @@ export interface Prefs {
   pace: Pace
   /** Finished first-run setup. */
   onboarded: boolean
+  /** ISO code prices are converted into (default Malaysian ringgit). */
+  currency: string
 }
 
 const KEY = 'tokyo-day:prefs:v1'
@@ -14,10 +16,11 @@ const LEGACY_ITINERARY_KEY = 'tokyo-day:itinerary:v1'
 
 function initial(): Prefs {
   const saved = load<Prefs | null>(KEY, null)
-  if (saved) return saved
+  // Prefs saved before the currency setting existed default to ringgit.
+  if (saved) return { ...saved, currency: saved.currency ?? 'MYR' }
   // People who used the app before setup existed: keep their day and their LUUP subscription.
   const legacy = load<unknown>(LEGACY_ITINERARY_KEY, null) != null
-  return { luup: legacy ? 'sub' : 'none', interests: [], pace: 'balanced', onboarded: legacy }
+  return { luup: legacy ? 'sub' : 'none', interests: [], pace: 'balanced', onboarded: legacy, currency: 'MYR' }
 }
 
 let current: Prefs = initial()

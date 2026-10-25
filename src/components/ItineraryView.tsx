@@ -1,9 +1,10 @@
-import { ArrowDown, ArrowUp, Check, ChevronDown, Clock, ListChecks, MapPin, Minus, Navigation, Plus, SkipForward, Sparkles, Trash2, Undo2 } from 'lucide-react'
+import { ArrowDown, ArrowUp, Check, ChevronDown, Clock, ListChecks, MapPin, Minus, Navigation, Plus, Share2, SkipForward, Sparkles, Trash2, Undo2 } from 'lucide-react'
 import { useState } from 'react'
 import { getPlace, PLACES, placeLabel } from '../data/places'
 import type { ItineraryApi } from '../hooks/useItinerary'
 import type { Geo } from '../hooks/useGeolocation'
 import type { HomeTrip } from '../lib/home'
+import { inHome } from '../lib/fx'
 import { scorePlace, whyPlace } from '../lib/planner'
 import { INTEREST_LABEL, INTERESTS, type Prefs } from '../lib/prefs'
 import { directionsUrl, modeToGoogle } from '../lib/maps'
@@ -30,9 +31,10 @@ interface Props {
   geo: Geo
   prefs: Prefs
   planNew: () => void
+  openShare: () => void
 }
 
-export function ItineraryView({ itin, timeline, advice, gps, openJourney, showOnMap, trip, openHome, geo, prefs, planNew }: Props) {
+export function ItineraryView({ itin, timeline, advice, gps, openJourney, showOnMap, trip, openHome, geo, prefs, planNew, openShare }: Props) {
   const [tab, setTab] = useState<'day' | 'places'>('day')
   return (
     <div className="pt-safe bottom-nav-space px-4">
@@ -41,9 +43,14 @@ export function ItineraryView({ itin, timeline, advice, gps, openJourney, showOn
           <h1 className="text-3xl font-bold tracking-tight">{tab === 'day' ? 'My day' : 'Places'}</h1>
           {tab === 'day' && itin.state.date && <div className="text-[14px] text-muted">{dateLabel(itin.state.date)}</div>}
         </div>
-        <Button variant="primary" className="min-h-10 px-3 text-[14px]" onClick={planNew}>
-          <Sparkles size={16} /> New plan
-        </Button>
+        <div className="flex gap-2">
+          <Button className="min-h-10 px-3 text-[14px]" onClick={openShare} aria-label="Share plan">
+            <Share2 size={16} /> Share
+          </Button>
+          <Button variant="primary" className="min-h-10 px-3 text-[14px]" onClick={planNew}>
+            <Sparkles size={16} /> New plan
+          </Button>
+        </div>
       </div>
       <div className="mt-3 grid grid-cols-2 rounded-2xl bg-card p-1 text-[15px] font-semibold">
         {(['day', 'places'] as const).map((t) => (
@@ -61,7 +68,7 @@ export function ItineraryView({ itin, timeline, advice, gps, openJourney, showOn
   )
 }
 
-function DayList({ itin, timeline, advice, gps, openJourney, showOnMap, trip, openHome, geo }: Omit<Props, 'prefs' | 'planNew'>) {
+function DayList({ itin, timeline, advice, gps, openJourney, showOnMap, trip, openHome, geo }: Omit<Props, 'prefs' | 'planNew' | 'openShare'>) {
   const { state } = itin
   const [startText, setStartText] = useState(fmtMin(state.startMin))
   const [endText, setEndText] = useState(fmtMin(state.endMin))
@@ -159,6 +166,7 @@ function DayList({ itin, timeline, advice, gps, openJourney, showOnMap, trip, op
           Planned finish {fmtMin(timeline.plannedEnd)} · now ~{fmtMin(timeline.projectedEnd)}
           <br />
           Transport today ≈ ¥{dayCost.yen.toLocaleString('en-GB')}
+          {inHome(dayCost.yen)}
           {dayCost.unknown > 0 && ` + ${dayCost.unknown} fare${dayCost.unknown > 1 ? 's' : ''} in Maps`}
         </span>
 
