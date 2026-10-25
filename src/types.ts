@@ -59,7 +59,13 @@ export interface Place extends LatLng {
   hidden?: boolean
   /** Mostly outdoors: worth a warning when rain is forecast. */
   outdoor?: boolean
+  /** Base region the place belongs to (default Tokyo). */
+  region?: Region
+  /** Part of a day trip (see data/regions.ts) rather than everyday city sightseeing. */
+  dayTrip?: string
 }
+
+export type Region = 'tokyo' | 'kansai'
 
 export interface Station extends LatLng {
   name: string

@@ -1,12 +1,13 @@
 # Tokyo Day: travel companion
 
-Mobile-first web app that plans a day in Tokyo around what you like and then navigates it: which train line and direction, where to get off, when LUUP or walking is better, what's around you, and how to get back to where you're staying. Built for iPhone Safari, installable to the home screen, no account, no API keys, everything stored on the phone.
+Mobile-first web app that plans days in Japan (Tokyo, Kyoto, Osaka, plus day trips) around what you like and then navigates it: which train line and direction, where to get off, when LUUP or walking is better, what's around you, and how to get back to where you're staying. Built for iPhone Safari, installable to the home screen, no account, no API keys, everything stored on the phone.
 
 Live site: **https://spidyloke.github.io/travel-buddy/**
 
 ## What it does
 
 - **First-run setup** (about a minute): where you're staying (search or current location), date and hours, interests, pace, LUUP plan (none / pay per ride / subscription), optional must-sees, then a generated day plan to accept or reshuffle. "Plan a new day" any time from Settings or the Itinerary tab; places visited on earlier days can be skipped.
+- **Cities and day trips**: Tokyo, Kyoto and Osaka catalogues, and day trips to Kamakura, Hakone, Nikkō and Fuji Five Lakes (from Tokyo) or Nara (from Kyoto/Osaka). The region comes from where you're staying; each chosen day trip gets its own day, filled with as much of that area as fits (the ride out and back is treated as a fixed cost). Step-by-step train cards and fares exist for central Tokyo routes; elsewhere you get time estimates and live Google Maps directions.
 - **Multi-day trips**: plan up to 7 days at once. Must-sees are split across days by geography, places never repeat, later days relax interest matching so they still fill up. Day tabs in the Itinerary; Home offers to switch to today's day.
 - **Weather**: Open-Meteo forecast (free, no key) for the trip dates, up to 16 days ahead: day summary, temperatures on day tabs, and a warning on outdoor stops when rain is 50%+ around your arrival time. Warn only, the plan is never changed automatically.
 - **Food**: lunch (~12:30) and dinner (~19:00) rows in the itinerary at wherever you'll be, and a Home card at meal times. Ideas from OpenStreetMap, filtered by your food needs (halal / Muslim-friendly, vegetarian, no seafood); halal also lists mosques and prayer rooms within 5 km. Halal, Vegetarian and Prayer space categories in Nearby.
@@ -60,7 +61,8 @@ Open the site in Safari → Share → **Add to Home Screen**. Allow location whe
 ```
 src/
   data/places.ts      core destinations, Japanese names, typical hours
-  data/morePlaces.ts  extra destinations for the planner and guide
+  data/morePlaces.ts  extra Tokyo destinations for the planner and guide
+  data/regions.ts     Kyoto, Osaka, Nara and day-trip destinations, region detection
   data/legs.ts        hand-written train routes (line, direction, stops, exits)
   data/itinerary.ts   default day plan
   lib/planner.ts      day planner and recommendation scoring

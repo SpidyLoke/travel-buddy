@@ -1,6 +1,7 @@
 import { ArrowLeft, Check, Home, MapPin, Shuffle, Sparkles, TriangleAlert, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
-import { getPlace, PLACES, placeLabel } from '../data/places'
+import { PLACES, placeLabel } from '../data/places'
+import { CITY_CENTRES, DAY_TRIPS, regionOf } from '../data/regions'
 import type { Geo } from '../hooks/useGeolocation'
 import { addDays, planToItinerary, planTrip, type PlanInput } from '../lib/planner'
 import { DIET_LABEL, INTEREST_LABEL, INTERESTS, withPrefs, type Diet, type Prefs } from '../lib/prefs'
@@ -26,7 +27,24 @@ interface Props {
   onCancel?: () => void
 }
 
-const FALLBACK_HOME = () => ({ ...getPlace('tokyostation'), name: 'Central Tokyo (Tokyo Station)' })
+/** Starting point when you have no hotel yet: a city centre. */
+const cityHome = (i: number): Place => {
+  const c = CITY_CENTRES[i]
+  return {
+    id: `city-${c.city.toLowerCase()}`,
+    name: c.homeName,
+    nameJa: c.homeName,
+    mapsQuery: c.mapsQuery,
+    lat: c.centre.lat,
+    lng: c.centre.lng,
+    area: c.city,
+    description: '',
+    activities: [],
+    suggestedMin: 0,
+    nearestStation: '',
+    custom: true,
+  }
+}
 
 function defaultDay(): { date: string; start: number } {
   const now = nowMinJst()
@@ -68,6 +86,9 @@ export function PlanWizard({ geo, firstRun, initialHome, prefs, visited, onDone,
   const [skipVisited, setSkipVisited] = useState(visited.length > 0)
   const [seed, setSeed] = useState(0)
   const [days, setDays] = useState(1)
+  const [dayTrips, setDayTrips] = useState<string[]>([])
+  const region = regionOf(home ?? cityHome(0))
+  const tripOptions = DAY_TRIPS.filter((t) => t.from === region)
   const [shown, setShown] = useState(0)
 
   const startMin = parseHm(startText) ?? d.start
@@ -75,7 +96,7 @@ export function PlanWizard({ geo, firstRun, initialHome, prefs, visited, onDone,
   const timeError = endMin - startMin < 120 ? 'Allow at least 2 hours between start and finish.' : null
 
   const input: PlanInput = {
-    home: home ?? FALLBACK_HOME(),
+    home: home ?? cityHome(0),
     date,
     startMin,
     endMin,
@@ -88,7 +109,7 @@ export function PlanWizard({ geo, firstRun, initialHome, prefs, visited, onDone,
   // The planner reads the LUUP plan from prefs, so preview with the choice applied.
   // Inputs cannot change while the preview step is showing, so step + seed is enough.
   const trip = useMemo(
-    () => (step === 'preview' ? withPrefs({ luup }, () => planTrip({ ...input, startDate: date, days })) : null),
+    () => (step === 'preview' ? withPrefs({ luup }, () => planTrip({ ...input, startDate: date, days, dayTrips: dayTrips.filter((t) => tripOptions.some((o) => o.id === t)) })) : null),
     [step, seed],
   )
   const day = trip?.[Math.min(shown, (trip?.length ?? 1) - 1)]
@@ -99,7 +120,7 @@ export function PlanWizard({ geo, firstRun, initialHome, prefs, visited, onDone,
   }, [step, trip])
   const plan = day?.plan ?? null
 
-  const mustOptions = PLACES.filter((p) => !p.hidden && p.tags?.length && p.kind !== 'shop' && (p.score ?? 0) >= 3).sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
+  const mustOptions = PLACES.filter((p) => !p.hidden && !p.dayTrip && (p.region ?? 'tokyo') === region && p.tags?.length && p.kind !== 'shop' && (p.score ?? 0) >= 3).sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
   const toggle = <T,>(list: T[], v: T) => (list.includes(v) ? list.filter((x) => x !== v) : [...list, v])
 
   return (
@@ -132,13 +153,13 @@ export function PlanWizard({ geo, firstRun, initialHome, prefs, visited, onDone,
             <div className="size-16 rounded-3xl bg-accent text-white grid place-items-center">
               <Sparkles size={30} />
             </div>
-            <h1 className="text-4xl font-bold tracking-tight leading-tight">Your Tokyo day, planned and navigated.</h1>
+            <h1 className="text-4xl font-bold tracking-tight leading-tight">Your days in Japan, planned and navigated.</h1>
             <ul className="space-y-3 text-[17px]">
               <li>🗺️ A day plan built around what you like, in an order that makes sense.</li>
               <li>🚆 Step-by-step trains for first-timers: which line, which direction, where to get off.</li>
               <li>📍 Live help wherever you are: food, toilets, Donki, landmarks and the way home.</li>
             </ul>
-            <p className="text-muted">About a minute to set up. Everything stays on your phone.</p>
+            <p className="text-muted">Tokyo, Kyoto, Osaka and day trips like Kamakura, Hakone, Fuji and Nara. About a minute to set up. Everything stays on your phone.</p>
           </div>
         )}
 
@@ -159,6 +180,18 @@ export function PlanWizard({ geo, firstRun, initialHome, prefs, visited, onDone,
               </Card>
             )}
             <PlaceSearch geo={geo} onPick={setHome} />
+            {!home && (
+              <div>
+                <div className="px-1 pb-2 text-[13px] font-semibold text-muted">No hotel yet? Start from a city centre:</div>
+                <div className="grid grid-cols-3 gap-2">
+                  {CITY_CENTRES.map((c, i) => (
+                    <Button key={c.city} onClick={() => setHome(cityHome(i))}>
+                      {c.city}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -251,6 +284,29 @@ export function PlanWizard({ geo, firstRun, initialHome, prefs, visited, onDone,
               ))}
             </div>
             <p className="px-1 text-[13px] text-muted">Lunch and dinner ideas near your route will match these.</p>
+            {tripOptions.length > 0 && (
+              <>
+                <h2 className="pt-2 text-xl font-bold">Day trips (optional)</h2>
+                <div className="space-y-2">
+                  {tripOptions.map((t) => {
+                    const on = dayTrips.includes(t.id)
+                    return (
+                      <button
+                        key={t.id}
+                        onClick={() => setDayTrips((l) => toggle(l, t.id))}
+                        className={`w-full rounded-2xl p-4 text-left border-2 ${on ? 'border-accent bg-card' : 'border-transparent bg-card'}`}
+                      >
+                        <div className="font-semibold">{t.name}</div>
+                        <div className="text-[13px] text-muted">{t.blurb}</div>
+                      </button>
+                    )
+                  })}
+                </div>
+                <p className="px-1 text-[13px] text-muted">
+                  Each day trip takes a whole day{days > 1 ? ', from day 2 onwards' : ''}.{dayTrips.length > days ? ` You picked ${dayTrips.length} for ${days} day${days > 1 ? 's' : ''}: only the first ${days} fit.` : ''}
+                </p>
+              </>
+            )}
             <h2 className="pt-2 text-xl font-bold">Must-sees (optional)</h2>
             <div className="flex flex-wrap gap-2">
               {mustOptions.map((p) => (
@@ -363,7 +419,7 @@ export function PlanWizard({ geo, firstRun, initialHome, prefs, visited, onDone,
               <Button variant="primary" className="w-full min-h-14 text-[17px]" disabled={step === 'when' && !!timeError} onClick={next}>
                 {step === 'welcome' ? "Let's plan" : step === 'extras' ? (days > 1 ? 'Build my trip' : 'Build my day') : step === 'stay' && !home ? 'Skip for now' : 'Next'}
               </Button>
-              {step === 'stay' && !home && <p className="text-center text-[13px] text-muted">Skipping uses central Tokyo. Change it later in Settings.</p>}
+              {step === 'stay' && !home && <p className="text-center text-[13px] text-muted">No hotel yet? Pick a city above, or skip to start from central Tokyo.</p>}
             </>
           )}
         </div>

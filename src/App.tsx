@@ -90,7 +90,7 @@ export default function App() {
   const advice = useMemo(() => adviseSchedule(itin.state, timeline), [itin.state, timeline])
   useReminders(timeline, itin.state.date, prefs.prefs.alerts)
   const trip = useMemo(() => homeTrip(itin.state, timeline, nowMin), [itin.state, timeline, nowMin])
-  const gpsLive = geo.status === 'active' && !geo.outsideTokyo ? geo.position : null
+  const gpsLive = geo.status === 'active' && !geo.outsideJapan ? geo.position : null
   const hereTrip = useMemo(() => (gpsLive ? homeTripFromHere(itin.state, gpsLive, nowMin) : null), [itin.state, gpsLive, nowMin])
   const [homeOpen, setHomeOpen] = useState(false)
 
@@ -102,7 +102,7 @@ export default function App() {
   }, [dayDone, gpsStatus, stopGps])
 
   const journey = journeyStopId ? timeline.entries.find((e) => e.stop.id === journeyStopId) : undefined
-  const gps = geo.status === 'active' && !geo.outsideTokyo ? geo.position : null
+  const gps = geo.status === 'active' && !geo.outsideJapan ? geo.position : null
 
   // Built-in destinations plus anything added from Nearby/search.
   const photoPlaces = useMemo(

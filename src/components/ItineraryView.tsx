@@ -4,7 +4,8 @@ import { getPlace, PLACES, placeLabel } from '../data/places'
 import type { ItineraryApi } from '../hooks/useItinerary'
 import type { Geo } from '../hooks/useGeolocation'
 import type { TripApi } from '../hooks/useTrip'
-import type { HomeTrip } from '../lib/home'
+import { homePlace, type HomeTrip } from '../lib/home'
+import { regionOf } from '../data/regions'
 import { downloadIcs } from '../lib/calendar'
 import { inHome } from '../lib/fx'
 import { scorePlace, whyPlace } from '../lib/planner'
@@ -381,10 +382,31 @@ function StopCard({ stop, index, count, itin, timeline, gps, openJourney, showOn
   )
 }
 
+type GuideArea = 'tokyo' | 'tokyo-trips' | 'kansai' | 'kansai-trips'
+const GUIDE_AREAS: { id: GuideArea; label: string }[] = [
+  { id: 'tokyo', label: 'Tokyo' },
+  { id: 'tokyo-trips', label: 'Day trips from Tokyo' },
+  { id: 'kansai', label: 'Kyoto & Osaka' },
+  { id: 'kansai-trips', label: 'Nara' },
+]
+
 function PlacesGuide({ itin, gps, showOnMap, interests }: { itin: ItineraryApi; gps: LatLng | null; showOnMap: (p: Place) => void; interests: Interest[] }) {
   const [filter, setFilter] = useState<Interest | 'all'>('all')
+  const homeRegion = (() => {
+    const h = homePlace(itin.state)
+    return Number.isFinite(h.lat) ? regionOf(h) : 'tokyo'
+  })()
+  const [area, setArea] = useState<GuideArea>(homeRegion === 'kansai' ? 'kansai' : 'tokyo')
   const inPlan = new Set(itin.state.stops.map((s) => s.placeId))
-  const visible = PLACES.filter((p) => !p.hidden && p.id !== itin.state.startPlaceId && !p.custom)
+  const inArea = (p: Place) =>
+    area === 'tokyo'
+      ? (p.region ?? 'tokyo') === 'tokyo' && !p.dayTrip
+      : area === 'tokyo-trips'
+        ? (p.region ?? 'tokyo') === 'tokyo' && !!p.dayTrip
+        : area === 'kansai'
+          ? p.region === 'kansai' && !p.dayTrip
+          : p.region === 'kansai' && !!p.dayTrip
+  const visible = PLACES.filter((p) => !p.hidden && p.id !== itin.state.startPlaceId && !p.custom && inArea(p))
   const recommended = visible
     .filter((p) => p.tags?.length && p.kind !== 'shop' && !inPlan.has(p.id))
     .sort((a, b) => scorePlace(b, interests) - scorePlace(a, interests))
@@ -393,6 +415,19 @@ function PlacesGuide({ itin, gps, showOnMap, interests }: { itin: ItineraryApi; 
 
   return (
     <div>
+      <div className="-mx-4 mt-3 overflow-x-auto px-4 [scrollbar-width:none]">
+        <div className="flex gap-2 w-max">
+          {GUIDE_AREAS.map((a) => (
+            <button
+              key={a.id}
+              onClick={() => setArea(a.id)}
+              className={`rounded-2xl px-3.5 py-2 text-[14px] font-semibold ${area === a.id ? 'bg-accent text-white' : 'bg-card'}`}
+            >
+              {a.label}
+            </button>
+          ))}
+        </div>
+      </div>
       <SectionTitle>Recommended for you</SectionTitle>
       <p className="px-1 -mt-1 mb-2 text-[13px] text-muted">
         {interests.length ? `Based on ${interests.map((i) => INTEREST_LABEL[i]).join(', ')}.` : 'Tokyo classics. Set interests in Settings to personalise.'} Not already in your day.

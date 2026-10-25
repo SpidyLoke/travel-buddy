@@ -21,6 +21,7 @@ const LUUP_KMH = 12
 const LUUP_OVERHEAD = 6 // find a port, unlock, park, photo
 const TRAIN_OVERHEAD = 12 // walk to platform, wait, walk out
 const TRAIN_MIN_PER_KM = 2.5
+const TRAIN_MIN_PER_KM_LONG = 1.1
 
 export function estimateTravel(from: Place, to: Place, mode: TransportMode): TravelEstimate {
   const leg = findLeg(from.id, to.id)
@@ -30,7 +31,8 @@ export function estimateTravel(from: Place, to: Place, mode: TransportMode): Tra
   let min: number
   if (mode === 'walk') min = (km / WALK_KMH) * 60
   else if (mode === 'luup') min = (km / LUUP_KMH) * 60 + LUUP_OVERHEAD
-  else min = TRAIN_OVERHEAD + km * TRAIN_MIN_PER_KM
+  // Beyond the city, limited expresses and rapid trains are much quicker per km.
+  else min = TRAIN_OVERHEAD + Math.min(km, 12) * TRAIN_MIN_PER_KM + Math.max(0, km - 12) * TRAIN_MIN_PER_KM_LONG
   return { min: Math.max(3, Math.round(min / 5) * 5), source: 'calc', km }
 }
 

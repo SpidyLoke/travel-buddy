@@ -1,5 +1,6 @@
 import type { Place } from '../types'
 import { MORE_PLACES } from './morePlaces'
+import { REGION_PLACES } from './regions'
 
 // Coordinates are approximate landmark centres (good to ~100 m), used for the
 // map and straight-line distance only. External navigation uses mapsQuery.
@@ -408,7 +409,7 @@ export const PLACES: Place[] = [
   },
 ]
 
-PLACES.push(...MORE_PLACES)
+PLACES.push(...MORE_PLACES, ...REGION_PLACES)
 
 export const PLACE_BY_ID: Record<string, Place> = Object.fromEntries(PLACES.map((p) => [p.id, p]))
 

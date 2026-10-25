@@ -2,7 +2,7 @@ import type { Place } from '../types'
 
 // Extra destinations for the planner and guide. Hours are typical and
 // labelled as such in the UI; closed days flag places worth checking first.
-const P = (p: Omit<Place, 'activities' | 'nearestStation'> & Partial<Pick<Place, 'activities' | 'nearestStation'>>): Place => ({
+export const P = (p: Omit<Place, 'activities' | 'nearestStation'> & Partial<Pick<Place, 'activities' | 'nearestStation'>>): Place => ({
   activities: [],
   nearestStation: '',
   guideOnly: true,

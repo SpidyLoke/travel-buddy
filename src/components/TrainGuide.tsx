@@ -150,7 +150,11 @@ export function TrainGuide() {
   return (
     <div className="pt-safe bottom-nav-space px-4">
       <h1 className="pt-2 text-3xl font-bold tracking-tight">How to use Tokyo trains</h1>
-      <p className="mt-1 text-[15px] text-muted">Ten things, short and practical.</p>
+      <p className="mt-1 text-[15px] text-muted">Ten things, short and practical. The same basics work across Japan.</p>
+      <Notice tone="info">
+        Kyoto, Osaka and Nara: your Suica or PASMO works on trains, subways and most buses there too (the local card is ICOCA; they are interchangeable). Kyoto
+        sights are often easier by bus: board through the rear door and tap your card at the front, by the driver, when you get off.
+      </Notice>
 
       <div className="mt-4 space-y-2">
         {TRAIN_TOPICS.map((t, i) => (

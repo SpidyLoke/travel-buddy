@@ -1,5 +1,6 @@
 import { PLACES } from '../data/places'
-import type { Interest, ItineraryState, ItineraryStop, Pace, Place, TransportMode } from '../types'
+import { regionOf } from '../data/regions'
+import type { Interest, ItineraryState, ItineraryStop, Pace, Place, Region, TransportMode } from '../types'
 import { distanceKm } from './geo'
 import { INTEREST_LABEL } from './prefs'
 import { recommend } from './pricing'
@@ -30,6 +31,10 @@ export interface PlanInput {
   avoidGroups?: string[]
   /** Score penalty for places matching none of the interests (lower on later trip days). */
   offInterestPenalty?: number
+  /** Which city's places to use (default: worked out from home). */
+  region?: Region
+  /** Plan this day as a day trip to one area (see data/regions.ts). */
+  dayTrip?: string
 }
 
 export interface PlannedStop {
@@ -136,7 +141,8 @@ function makeSim(input: PlanInput) {
         ok = false
         problems.push(`${p.label ?? p.name} may close (${p.closesLabel ?? fmtMin(p.closesAt)}) before you finish.`)
       }
-      cost += tr.min + wait + timePenalty(p, start)
+      // On a day trip the ride out and back is a fixed cost, not a reason to drop places.
+      cost += (input.dayTrip && prev === input.home ? 0 : tr.min) + wait + timePenalty(p, start)
       t = depart + buffer
       prev = p
       return {
@@ -157,7 +163,7 @@ function makeSim(input: PlanInput) {
       problems.push(`The day runs to about ${fmtMin(last.depart)}, past your finish time.`)
     }
     const home = travel(prev, input.home)
-    cost += home.min
+    cost += input.dayTrip ? 0 : home.min
     return { ok, cost, stops, homeArrive: (last?.depart ?? input.startMin) + home.min, problems }
   }
 }
@@ -174,8 +180,15 @@ export function planDay(input: PlanInput): PlanResult {
   // Daytime sights on your doorstep you will see anyway; evening spots near
   // home still make a good end to the day.
   const doorstep = (p: Place) => distanceKm(p, input.home) < 0.3 && p.best !== 'night' && p.best !== 'evening'
-  const pool = PLACES.filter((p) => !p.hidden && p.tags?.length && p.kind !== 'shop' && !exclude.has(p.id) && (musts.has(p.id) || !doorstep(p)))
-  const value = new Map(pool.map((p) => [p.id, (musts.has(p.id) ? 1000 : scorePlace(p, input.interests, input.offInterestPenalty)) + rand()]))
+  const region = input.region ?? regionOf(input.home)
+  // City days use the home region's everyday places; day-trip days only that trip's places.
+  const inScope = (p: Place) => (input.dayTrip ? p.dayTrip === input.dayTrip : !p.dayTrip && (p.region ?? 'tokyo') === region)
+  const pool = PLACES.filter(
+    (p) => !p.hidden && p.tags?.length && p.kind !== 'shop' && inScope(p) && !exclude.has(p.id) && (musts.has(p.id) || !doorstep(p)),
+  )
+  // On a day trip you've already paid the long ride: see as much of the area as fits.
+  const tripBoost = input.dayTrip ? 4 : 0
+  const value = new Map(pool.map((p) => [p.id, (musts.has(p.id) ? 1000 : scorePlace(p, input.interests, input.offInterestPenalty) + tripBoost) + rand()]))
 
   for (const p of pool) {
     if (musts.has(p.id) && p.closedDays?.includes(weekday)) warnings.push(`${p.label ?? p.name}: ${p.closedNote ?? 'may be closed that day.'}`)
@@ -298,6 +311,17 @@ export interface TripInput extends Omit<PlanInput, 'date' | 'mustIds'> {
   startDate: string
   days: number
   mustIds: string[]
+  /** Day trips to fit in, one per day (from the second day when there is more than one day). */
+  dayTrips?: string[]
+}
+
+/** Which day (index) each chosen day trip goes on. */
+export function dayTripDays(days: number, trips: string[]): Record<number, string> {
+  const out: Record<number, string> = {}
+  // Keep day 1 in town (arrival day) when possible.
+  const slots = days === 1 ? [0] : [...Array.from({ length: days - 1 }, (_, i) => i + 1), 0]
+  trips.slice(0, days).forEach((t, i) => (out[slots[i]] = t))
+  return out
 }
 
 export interface TripDay {
@@ -322,10 +346,16 @@ export function planTrip(input: TripInput): TripDay[] {
     .map((id) => PLACES.find((p) => p.id === id))
     .filter((p): p is Place => !!p)
     .sort((a, b) => a.lng - b.lng)
-  const perDay = Math.ceil(musts.length / input.days)
+  const tripDays = dayTripDays(input.days, input.dayTrips ?? [])
+  const cityDays = Array.from({ length: input.days }, (_, d) => d).filter((d) => !tripDays[d])
+  const perDay = Math.ceil(musts.length / Math.max(1, cityDays.length))
   const used = new Set(input.excludeIds)
-  const mustsFor = (d: number) => musts.slice(d * perDay, (d + 1) * perDay).map((p) => p.id)
+  const mustsFor = (d: number) => {
+    const k = cityDays.indexOf(d)
+    return k < 0 ? [] : musts.slice(k * perDay, (k + 1) * perDay).map((p) => p.id)
+  }
   const out: TripDay[] = []
+  const trips = tripDays
   for (let d = 0; d < input.days; d++) {
     const mine = mustsFor(d)
     // Other days' must-sees are kept for their own day.
@@ -337,6 +367,7 @@ export function planTrip(input: TripInput): TripDay[] {
       excludeIds: [...used, ...others],
       // Later days run out of perfect matches: let classics back in.
       offInterestPenalty: d === 0 ? 3 : 1,
+      dayTrip: trips[d],
     }
     const plan = planDay(day)
     plan.stops.forEach((s) => used.add(s.place.id))

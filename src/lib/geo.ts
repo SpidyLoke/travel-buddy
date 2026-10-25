@@ -19,7 +19,7 @@ export function formatDistance(km: number): string {
   return `${km < 10 ? km.toFixed(1) : Math.round(km)} km`
 }
 
-/** Rough bounding box for Greater Tokyo, used to sanity-check GPS fixes. */
-export function isInTokyoArea(p: LatLng): boolean {
-  return p.lat > 35.3 && p.lat < 36.1 && p.lng > 139.2 && p.lng < 140.3
+/** Rough bounding box for Japan, used to sanity-check GPS fixes. */
+export function isInJapan(p: LatLng): boolean {
+  return p.lat > 24 && p.lat < 46 && p.lng > 122.5 && p.lng < 146
 }

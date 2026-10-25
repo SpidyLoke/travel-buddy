@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { isInTokyoArea } from '../lib/geo'
+import { isInJapan } from '../lib/geo'
 import type { LatLng } from '../types'
 
 export type GeoStatus = 'idle' | 'paused' | 'locating' | 'active' | 'denied' | 'unavailable' | 'unsupported'
@@ -9,11 +9,11 @@ export interface GeoState {
   position: LatLng | null
   accuracy: number | null
   updatedAt: number | null
-  outsideTokyo: boolean
+  outsideJapan: boolean
   error: string | null
 }
 
-const INITIAL: GeoState = { status: 'idle', position: null, accuracy: null, updatedAt: null, outsideTokyo: false, error: null }
+const INITIAL: GeoState = { status: 'idle', position: null, accuracy: null, updatedAt: null, outsideJapan: false, error: null }
 
 /** Fixes worse than this are kept but flagged as low accuracy. */
 export const POOR_ACCURACY_M = 150
@@ -46,7 +46,7 @@ export function useGeolocation() {
           if (prev.accuracy != null && prev.updatedAt != null && pos.coords.accuracy > prev.accuracy * 4 && pos.timestamp - prev.updatedAt < 20000) {
             return prev
           }
-          return { status: 'active', position: p, accuracy: pos.coords.accuracy, updatedAt: pos.timestamp, outsideTokyo: !isInTokyoArea(p), error: null }
+          return { status: 'active', position: p, accuracy: pos.coords.accuracy, updatedAt: pos.timestamp, outsideJapan: !isInJapan(p), error: null }
         })
       },
       (err) => {

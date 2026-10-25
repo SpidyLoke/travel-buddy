@@ -53,7 +53,7 @@ export function Dashboard({ now, geo, itin, timeline, advice, online, openSettin
   const done = timeline.entries.filter((e) => e.stop.status === 'done').length
   const pos = geo.position
 
-  const street = useStreetName(geo.status === 'active' && !geo.outsideTokyo ? pos : null, online)
+  const street = useStreetName(geo.status === 'active' && !geo.outsideJapan ? pos : null, online)
   const nearest = pos
     ? PLACES.filter((p) => !p.hidden).map((p) => ({ p, d: distanceKm(pos, p) })).sort((a, b) => a.d - b.d)[0]
     : null
@@ -63,7 +63,7 @@ export function Dashboard({ now, geo, itin, timeline, advice, online, openSettin
   const mode = cur?.stop.transport ?? 'train'
   const ModeIcon = MODE_META[mode].Icon
   // GPS says you are nowhere near where this leg starts (e.g. you went off-plan).
-  const livePos = geo.status === 'active' && !geo.outsideTokyo ? pos : null
+  const livePos = geo.status === 'active' && !geo.outsideJapan ? pos : null
   const boardAt = leg?.segments[0].from
   const offRoute = !!(livePos && cur && !arrived && distanceKm(livePos, cur.prev) > OFF_ROUTE_KM && (!boardAt || distanceKm(livePos, boardAt) > OFF_ROUTE_KM))
   const firstStep = offRoute
@@ -192,7 +192,7 @@ export function Dashboard({ now, geo, itin, timeline, advice, online, openSettin
                 {geo.status === 'paused' ? 'Resume GPS' : 'Stop GPS'}
               </button>
             </div>
-            {geo.outsideTokyo && <div className="mt-2"><Notice tone="warn">You appear to be outside Tokyo. Distances will look large.</Notice></div>}
+            {geo.outsideJapan && <div className="mt-2"><Notice tone="warn">You appear to be outside Japan, so live location is ignored. Distances will look large.</Notice></div>}
           </div>
         ) : (
           <div className="mt-2 space-y-2">
@@ -307,7 +307,7 @@ export function Dashboard({ now, geo, itin, timeline, advice, online, openSettin
           )}
 
           <div className="grid grid-cols-1 gap-2">
-            <LinkButton variant={mode === 'luup' ? 'luup' : 'primary'} className="min-h-14 text-[18px]" href={directionsUrl(cur.place, modeToGoogle[mode], geo.status === 'active' && !geo.outsideTokyo ? pos : undefined)}>
+            <LinkButton variant={mode === 'luup' ? 'luup' : 'primary'} className="min-h-14 text-[18px]" href={directionsUrl(cur.place, modeToGoogle[mode], geo.status === 'active' && !geo.outsideJapan ? pos : undefined)}>
               <Navigation size={20} /> Navigate
             </LinkButton>
             <Button variant="secondary" className="min-h-13" onClick={openJourney}>

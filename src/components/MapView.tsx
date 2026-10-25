@@ -38,7 +38,9 @@ export function MapView({ visible, geo, state, timeline, focus, online }: Props)
   // Create the map once.
   useEffect(() => {
     if (!el.current || map.current) return
-    const m = L.map(el.current, { zoomControl: false, attributionControl: false }).setView(TOKYO, 12)
+    // Open on where the plan starts (Tokyo, Kyoto, Osaka…), else central Tokyo.
+    const start = getPlace(state.startPlaceId)
+    const m = L.map(el.current, { zoomControl: false, attributionControl: false }).setView(Number.isFinite(start.lat) ? [start.lat, start.lng] : TOKYO, 12)
     // Bottom-right is covered by the tab bar, so credit OpenStreetMap at the top.
     L.control.attribution({ position: 'topleft', prefix: false }).addTo(m)
     const tiles = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -126,11 +128,11 @@ export function MapView({ visible, geo, state, timeline, focus, online }: Props)
     const ll: L.LatLngTuple = [geo.position.lat, geo.position.lng]
     if (geo.accuracy) L.circle(ll, { radius: geo.accuracy, color: '#0a84ff', weight: 1, fillOpacity: 0.1 }).addTo(g)
     L.marker(ll, { icon: L.divIcon({ className: '', html: '<div class="user-dot"></div>', iconSize: [18, 18] }), zIndexOffset: 2000 }).addTo(g)
-    if (!centredOnce.current && visible && !geo.outsideTokyo) {
+    if (!centredOnce.current && visible && !geo.outsideJapan) {
       map.current?.setView(ll, 15)
       centredOnce.current = true
     }
-  }, [geo.position, geo.accuracy, geo.outsideTokyo, visible])
+  }, [geo.position, geo.accuracy, geo.outsideJapan, visible])
 
   // Places found in Nearby/search are not on the map otherwise: pin the focused one.
   const focusLayer = useRef<L.LayerGroup | null>(null)
@@ -157,7 +159,7 @@ export function MapView({ visible, geo, state, timeline, focus, online }: Props)
   // Walking route for the next leg: to the stop when walking, or to the
   // boarding station when taking the train. LUUP gets no drawn route because
   // there is no scooter-legal routing source.
-  const gpsNear = geo.status === 'active' && geo.position && !geo.outsideTokyo ? geo.position : null
+  const gpsNear = geo.status === 'active' && geo.position && !geo.outsideJapan ? geo.position : null
   const routeTarget = (() => {
     if (!cur) return null
     if (cur.stop.transport === 'walk') return { to: cur.place as LatLng, label: placeLabel(cur.place) }
@@ -249,7 +251,7 @@ export function MapView({ visible, geo, state, timeline, focus, online }: Props)
                 {geo.position ? `${formatDistance(distanceKm(geo.position, cur.place))} straight line` : `Arrive ~${fmtMin(cur.projectedArrive)}`}
               </div>
             </div>
-            <LinkButton variant="primary" className="shrink-0" href={directionsUrl(cur.place, modeToGoogle[cur.stop.transport], geo.status === 'active' && !geo.outsideTokyo ? geo.position : undefined)}>
+            <LinkButton variant="primary" className="shrink-0" href={directionsUrl(cur.place, modeToGoogle[cur.stop.transport], geo.status === 'active' && !geo.outsideJapan ? geo.position : undefined)}>
               Go
             </LinkButton>
           </Card>
