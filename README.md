@@ -13,7 +13,8 @@ Live site: **https://spidyloke.github.io/travel-buddy/**
 - **Nearby**: live search for any place and categories around you or your next stop (landmarks with photos, Don Quijote, konbini, food, ramen, cafés, toilets, ATMs, drugstores, lockers, souvenirs, stations). Add any result to the day or set it as home.
 - **Itinerary**: visited / skip / restore, reorder, add, remove, visit length, times, transport, notes on why each stop was picked, transport total. **Destination guide** with "Recommended for you" and interest filters, credited photos.
 - **Trains**: beginner guide (Suica in Apple Wallet, gates, directions, transfers, exits, station codes, wrong train, low balance), sign glossary, etiquette, LUUP rules.
-- **Share**: send a plan as a link or QR code. The plan travels inside the link (compressed, nothing uploaded); opening it on another phone offers to load it.
+- **Group lobby** (peer to peer): start a lobby from Share, invite by link or QR, everyone edits one live plan. Visited / skip / reorder / add / time changes sync to every phone that has the app open, with who's online and a feed of who changed what. Phones connect directly over WebRTC (Trystero, public Nostr relays used only to find each other, data encrypted with the lobby code); nothing is stored on a server, so a phone catches up when it is opened while another member is online. Copies merge deterministically (last-writer-wins registers per stop, order and day settings, with tombstones for deletions; `src/lib/lobby.ts`).
+- **Share**: send a one-off copy of a plan as a link or QR code. The plan travels inside the link (compressed, nothing uploaded); opening it on another phone offers to load it.
 - **Currency**: yen ↔ your currency converter (default MYR) with live reference rates (European Central Bank via Frankfurter, fallback ExchangeRate-API), kept for offline use; converted amounts shown next to fares and the day's transport total.
 - **Settings**: home, LUUP plan, interests, currency, theme, start over.
 - Offline: app shell, saved plan and previously viewed map tiles and photos.
@@ -61,6 +62,8 @@ src/
   lib/planner.ts      day planner and recommendation scoring
   lib/prefs.ts        settings (LUUP plan, interests, pace)
   lib/nearby.ts       live search / nearby (Photon, Overpass, Wikipedia)
+  lib/lobby.ts        group lobby document and merge rules
+  hooks/useLobby.ts   peer-to-peer connection (Trystero / Nostr signalling)
   lib/schedule.ts     timeline, delay projection, skip advice
   lib/maps.ts         Google Maps URL builders, LUUP link
   lib/pricing.ts      fares, LUUP cost, per-leg recommendation

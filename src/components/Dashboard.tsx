@@ -30,6 +30,7 @@ interface Props {
   online: boolean
   openSettings: () => void
   openConverter: () => void
+  lobbyBar: ReactNode
   planNew: () => void
   openJourney: () => void
   showOnMap: (p: Place) => void
@@ -40,7 +41,7 @@ interface Props {
 /** Within this radius of the next stop we treat the user as having arrived. */
 const ARRIVED_KM = 0.35
 
-export function Dashboard({ now, geo, itin, timeline, advice, online, openSettings, openConverter, planNew, openJourney, showOnMap, trip, openHome }: Props) {
+export function Dashboard({ now, geo, itin, timeline, advice, online, openSettings, openConverter, lobbyBar, planNew, openJourney, showOnMap, trip, openHome }: Props) {
   const cur = timeline.nextIndex >= 0 ? timeline.entries[timeline.nextIndex] : undefined
   const total = timeline.entries.length
   const done = timeline.entries.filter((e) => e.stop.status === 'done').length
@@ -94,6 +95,7 @@ export function Dashboard({ now, geo, itin, timeline, advice, online, openSettin
       </header>
 
       <InstallHint />
+      {lobbyBar}
 
       {(day === 'future' || day === 'past') && (
         <Notice

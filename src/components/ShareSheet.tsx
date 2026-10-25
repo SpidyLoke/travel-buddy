@@ -1,14 +1,17 @@
-import { Check, Copy, LoaderCircle, Share2 } from 'lucide-react'
+import { Check, Copy, LoaderCircle, Share2, Users } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { renderSVG } from 'uqr'
 import { placeLabel, getPlace } from '../data/places'
+import type { LobbyApi } from '../hooks/useLobby'
 import { shareUrl } from '../lib/share'
+import { StartLobby } from './Lobby'
 import { dateLabel } from '../lib/time'
 import type { ItineraryState } from '../types'
 import { Button, Card, Notice, Sheet } from './ui'
 
 /** Link + QR code that opens this plan on someone else's phone. */
-export function ShareSheet({ state, onClose }: { state: ItineraryState; onClose: () => void }) {
+export function ShareSheet({ state, lobby, onOpenLobby, onClose }: { state: ItineraryState; lobby: LobbyApi; onOpenLobby: () => void; onClose: () => void }) {
+  const [mode, setMode] = useState<'live' | 'copy'>('live')
   const [url, setUrl] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   useEffect(() => {
@@ -23,8 +26,24 @@ export function ShareSheet({ state, onClose }: { state: ItineraryState; onClose:
   return (
     <Sheet title="Share this plan" onClose={onClose}>
       <div className="space-y-3">
+        <div className="grid grid-cols-2 rounded-2xl bg-card p-1 text-[14px] font-semibold">
+          <button onClick={() => setMode('live')} className={`rounded-xl py-2 ${mode === 'live' ? 'bg-accent text-white' : 'text-muted'}`}>
+            Live group lobby
+          </button>
+          <button onClick={() => setMode('copy')} className={`rounded-xl py-2 ${mode === 'copy' ? 'bg-accent text-white' : 'text-muted'}`}>
+            Send a copy
+          </button>
+        </div>
         <p className="px-1 text-[14px] text-muted">{summary}</p>
-        {!url ? (
+        {mode === 'live' ? (
+          lobby.active ? (
+            <Button variant="primary" className="w-full min-h-14 text-[17px]" onClick={onOpenLobby}>
+              <Users size={20} /> You're in a lobby: invite people
+            </Button>
+          ) : (
+            <StartLobby lobby={lobby} />
+          )
+        ) : !url ? (
           <div className="flex justify-center py-10 text-muted">
             <LoaderCircle className="animate-spin" />
           </div>

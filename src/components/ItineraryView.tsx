@@ -1,5 +1,5 @@
 import { ArrowDown, ArrowUp, Check, ChevronDown, Clock, ListChecks, MapPin, Minus, Navigation, Plus, Share2, SkipForward, Sparkles, Trash2, Undo2 } from 'lucide-react'
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { getPlace, PLACES, placeLabel } from '../data/places'
 import type { ItineraryApi } from '../hooks/useItinerary'
 import type { Geo } from '../hooks/useGeolocation'
@@ -32,9 +32,10 @@ interface Props {
   prefs: Prefs
   planNew: () => void
   openShare: () => void
+  lobbyBar: ReactNode
 }
 
-export function ItineraryView({ itin, timeline, advice, gps, openJourney, showOnMap, trip, openHome, geo, prefs, planNew, openShare }: Props) {
+export function ItineraryView({ itin, timeline, advice, gps, openJourney, showOnMap, trip, openHome, geo, prefs, planNew, openShare, lobbyBar }: Props) {
   const [tab, setTab] = useState<'day' | 'places'>('day')
   return (
     <div className="pt-safe bottom-nav-space px-4">
@@ -52,6 +53,7 @@ export function ItineraryView({ itin, timeline, advice, gps, openJourney, showOn
           </Button>
         </div>
       </div>
+      {lobbyBar && <div className="mt-3">{lobbyBar}</div>}
       <div className="mt-3 grid grid-cols-2 rounded-2xl bg-card p-1 text-[15px] font-semibold">
         {(['day', 'places'] as const).map((t) => (
           <button key={t} onClick={() => setTab(t)} className={`rounded-xl py-2 ${tab === t ? 'bg-accent text-white' : 'text-muted'}`}>
@@ -68,7 +70,7 @@ export function ItineraryView({ itin, timeline, advice, gps, openJourney, showOn
   )
 }
 
-function DayList({ itin, timeline, advice, gps, openJourney, showOnMap, trip, openHome, geo }: Omit<Props, 'prefs' | 'planNew' | 'openShare'>) {
+function DayList({ itin, timeline, advice, gps, openJourney, showOnMap, trip, openHome, geo }: Omit<Props, 'prefs' | 'planNew' | 'openShare' | 'lobbyBar'>) {
   const { state } = itin
   const [startText, setStartText] = useState(fmtMin(state.startMin))
   const [endText, setEndText] = useState(fmtMin(state.endMin))

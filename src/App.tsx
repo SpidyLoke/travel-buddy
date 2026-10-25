@@ -11,6 +11,7 @@ import { SettingsSheet } from './components/SettingsSheet'
 import { ConverterSheet } from './components/ConverterSheet'
 import { ImportSheet } from './components/ImportSheet'
 import { ShareSheet } from './components/ShareSheet'
+import { JoinLobbySheet, LobbyBar, LobbySheet } from './components/Lobby'
 import { resetDonki } from './components/Donki'
 import { TrainGuide } from './components/TrainGuide'
 import { useGeolocation } from './hooks/useGeolocation'
@@ -18,6 +19,7 @@ import { loadVisited, useItinerary } from './hooks/useItinerary'
 import { useNow } from './hooks/useNow'
 import { useOnline } from './hooks/useOnline'
 import { PhotosProvider } from './hooks/usePhotos'
+import { useLobby } from './hooks/useLobby'
 import { usePrefs } from './hooks/usePrefs'
 import { useTheme } from './hooks/useTheme'
 import { existingHome, homeTrip, homeTripFromHere } from './lib/home'
@@ -25,7 +27,7 @@ import { adviseSchedule, buildTimeline } from './lib/schedule'
 import { nowMinJst } from './lib/time'
 import { PLACES } from './data/places'
 import { refreshFx } from './lib/fx'
-import { clearIncoming, decodePlan, incomingCode } from './lib/share'
+import { clearIncoming, decodePlan, incomingCode, incomingLobby } from './lib/share'
 import type { ItineraryState, Place } from './types'
 
 export default function App() {
@@ -43,11 +45,20 @@ export default function App() {
   const [converterOpen, setConverterOpen] = useState(false)
   const [shareOpen, setShareOpen] = useState(false)
 
-  // Opened from a shared plan link?
+  const lobby = useLobby(itin)
+  const [lobbyOpen, setLobbyOpen] = useState(false)
+
+  // Opened from a shared plan link or a lobby invite?
   const [incoming, setIncoming] = useState<ItineraryState | null>(null)
+  const [invite, setInvite] = useState<{ code: string; plan: ItineraryState | null } | null>(null)
   useEffect(() => {
     const code = incomingCode()
-    if (code) decodePlan(code).then((plan) => (plan ? setIncoming(plan) : clearIncoming()))
+    const lobbyCode = incomingLobby()
+    if (lobbyCode) {
+      if (lobbyCode === lobby.code) return clearIncoming()
+      ;(code ? decodePlan(code) : Promise.resolve(null)).then((plan) => setInvite({ code: lobbyCode, plan }))
+    } else if (code) decodePlan(code).then((plan) => (plan ? setIncoming(plan) : clearIncoming()))
+    // Only on first load.
   }, [])
 
   // Exchange rates: refresh when online; re-render once they arrive.
@@ -56,7 +67,7 @@ export default function App() {
     if (online) refreshFx().then(() => setFxTick((t) => t + 1))
   }, [online])
 
-  const showWizard = (!prefs.prefs.onboarded || wizard !== null) && !incoming
+  const showWizard = (!prefs.prefs.onboarded || wizard !== null) && !incoming && !invite
 
   const nowMin = nowMinJst(now)
   const timeline = useMemo(() => buildTimeline(itin.state, nowMin), [itin.state, nowMin])
@@ -105,6 +116,7 @@ export default function App() {
           online={online}
           openSettings={() => setSettingsOpen(true)}
           openConverter={() => setConverterOpen(true)}
+          lobbyBar={<LobbyBar lobby={lobby} onOpen={() => setLobbyOpen(true)} />}
           planNew={planNew}
           openJourney={() => timeline.nextIndex >= 0 && setJourneyStopId(timeline.entries[timeline.nextIndex].stop.id)}
           showOnMap={showOnMap}
@@ -127,6 +139,7 @@ export default function App() {
           prefs={prefs.prefs}
           planNew={planNew}
           openShare={() => setShareOpen(true)}
+          lobbyBar={<LobbyBar lobby={lobby} onOpen={() => setLobbyOpen(true)} />}
         />
       )}
       {tab === 'nearby' && <NearbyView geo={geo} timeline={timeline} itin={itin} online={online} showOnMap={showOnMap} />}
@@ -140,6 +153,23 @@ export default function App() {
         }}
       />
 
+      {invite && (
+        <JoinLobbySheet
+          plan={invite.plan}
+          onJoin={(name) => {
+            lobby.join(invite.code, name, invite.plan)
+            prefs.update({ onboarded: true })
+            setInvite(null)
+            clearIncoming()
+            setTab('itinerary')
+          }}
+          onClose={() => {
+            setInvite(null)
+            clearIncoming()
+          }}
+        />
+      )}
+      {lobbyOpen && <LobbySheet lobby={lobby} state={itin.state} onClose={() => setLobbyOpen(false)} />}
       {incoming && (
         <ImportSheet
           plan={incoming}
@@ -157,7 +187,17 @@ export default function App() {
         />
       )}
       {converterOpen && <ConverterSheet online={online} onClose={() => setConverterOpen(false)} />}
-      {shareOpen && <ShareSheet state={itin.state} onClose={() => setShareOpen(false)} />}
+      {shareOpen && (
+        <ShareSheet
+          state={itin.state}
+          lobby={lobby}
+          onOpenLobby={() => {
+            setShareOpen(false)
+            setLobbyOpen(true)
+          }}
+          onClose={() => setShareOpen(false)}
+        />
+      )}
       {settingsOpen && <SettingsSheet geo={geo} itin={itin} prefs={prefs} theme={theme} onPlanNew={planNew} onClose={() => setSettingsOpen(false)} />}
       {showWizard && (
         <PlanWizard

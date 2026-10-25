@@ -28,18 +28,24 @@ async function pipe(bytes: Uint8Array<ArrayBuffer>, stream: CompressionStream | 
   return new Uint8Array(await new Response(out).arrayBuffer())
 }
 
-export async function encodePlan(state: ItineraryState): Promise<string> {
-  const json = new TextEncoder().encode(JSON.stringify(prune(state)))
+async function encodeJson(value: unknown): Promise<string> {
+  const json = new TextEncoder().encode(JSON.stringify(value))
   if (typeof CompressionStream !== 'undefined') return `z${toB64url(await pipe(json, new CompressionStream('deflate-raw')))}`
   return `j${toB64url(json)}`
 }
 
+async function decodeJson(code: string): Promise<unknown> {
+  const raw = fromB64url(code.slice(1))
+  const bytes = code[0] === 'z' ? await pipe(raw, new DecompressionStream('deflate-raw')) : raw
+  return JSON.parse(new TextDecoder().decode(bytes))
+}
+
+export const encodePlan = (state: ItineraryState): Promise<string> => encodeJson(prune(state))
+
 /** Returns null for anything that is not a valid plan. */
 export async function decodePlan(code: string): Promise<ItineraryState | null> {
   try {
-    const raw = fromB64url(code.slice(1))
-    const bytes = code[0] === 'z' ? await pipe(raw, new DecompressionStream('deflate-raw')) : raw
-    const s = JSON.parse(new TextDecoder().decode(bytes)) as ItineraryState
+    const s = (await decodeJson(code)) as ItineraryState
     if (s?.version !== 1 || !Array.isArray(s.stops) || typeof s.startMin !== 'number') return null
     const custom = new Set((s.customPlaces ?? []).map((p) => p.id))
     const known = (id: string) => !!PLACE_BY_ID[id] || custom.has(id)
@@ -54,8 +60,16 @@ export async function shareUrl(state: ItineraryState): Promise<string> {
   return `${location.origin}${import.meta.env.BASE_URL}#plan=${await encodePlan(state)}`
 }
 
+/** Invite link for a live lobby. Carries the current plan so joiners have it even if nobody else is online. */
+export async function lobbyUrl(code: string, state: ItineraryState): Promise<string> {
+  return `${location.origin}${import.meta.env.BASE_URL}#lobby=${code}&plan=${await encodePlan(state)}`
+}
+
 /** The plan code in the current address, if someone opened a shared link. */
 export const incomingCode = (): string | null => /[#&]plan=([^&]+)/.exec(location.hash)?.[1] ?? null
+
+/** The lobby code in the current address, if someone opened an invite. */
+export const incomingLobby = (): string | null => /[#&]lobby=([a-z0-9]{6,20})/.exec(location.hash)?.[1] ?? null
 
 export function clearIncoming(): void {
   history.replaceState(null, '', location.pathname + location.search)
