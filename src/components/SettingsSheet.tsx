@@ -5,7 +5,7 @@ import type { ItineraryApi } from '../hooks/useItinerary'
 import type { PrefsApi } from '../hooks/usePrefs'
 import { CURRENCIES } from '../lib/fx'
 import { homePlace } from '../lib/home'
-import { INTEREST_LABEL, INTERESTS } from '../lib/prefs'
+import { DIET_LABEL, INTEREST_LABEL, INTERESTS, type Diet } from '../lib/prefs'
 import type { LuupPlan, ThemePref } from '../types'
 import { PlaceSearch } from './PlaceSearch'
 import { Button, Card, SectionTitle, Sheet } from './ui'
@@ -82,6 +82,23 @@ export function SettingsSheet({ geo, itin, prefs, theme, onPlanNew, onClose }: P
             )
           })}
         </div>
+
+        <SectionTitle>Food needs</SectionTitle>
+        <div className="flex flex-wrap gap-2">
+          {(Object.keys(DIET_LABEL) as Diet[]).map((d) => {
+            const on = prefs.prefs.diet.includes(d)
+            return (
+              <button
+                key={d}
+                onClick={() => prefs.update({ diet: on ? prefs.prefs.diet.filter((x) => x !== d) : [...prefs.prefs.diet, d] })}
+                className={`rounded-full px-3.5 py-2 text-[14px] font-semibold ${on ? 'bg-accent text-white' : 'bg-card'}`}
+              >
+                {DIET_LABEL[d]}
+              </button>
+            )
+          })}
+        </div>
+        <p className="px-1 pt-1 text-[13px] text-muted">Used for lunch and dinner ideas. Halal also shows prayer spaces.</p>
 
         <SectionTitle>Your currency</SectionTitle>
         <Card className="p-4 flex items-center justify-between gap-3">

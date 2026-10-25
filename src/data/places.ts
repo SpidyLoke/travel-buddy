@@ -44,6 +44,7 @@ export const PLACES: Place[] = [
   },
   {
     id: 'sensoji',
+    outdoor: true,
     name: 'Senso-ji Temple',
     label: 'Asakusa',
     nameJa: '浅草寺',
@@ -64,6 +65,7 @@ export const PLACES: Place[] = [
   },
   {
     id: 'nakamise',
+    outdoor: true,
     name: 'Nakamise Shopping Street',
     nameJa: '仲見世通り',
     mapsQuery: 'Nakamise Shopping Street, Asakusa',
@@ -111,6 +113,7 @@ export const PLACES: Place[] = [
   },
   {
     id: 'ueno',
+    outdoor: true,
     name: 'Ueno Park',
     nameJa: '上野恩賜公園',
     mapsQuery: 'Ueno Park, Tokyo',
@@ -214,6 +217,7 @@ export const PLACES: Place[] = [
   },
   {
     id: 'takeshita',
+    outdoor: true,
     name: 'Takeshita Street',
     label: 'Harajuku',
     nameJa: '竹下通り',
@@ -238,6 +242,7 @@ export const PLACES: Place[] = [
   },
   {
     id: 'omotesando',
+    outdoor: true,
     name: 'Omotesando',
     nameJa: '表参道',
     mapsQuery: 'Omotesando Hills, Tokyo',
@@ -257,6 +262,7 @@ export const PLACES: Place[] = [
   },
   {
     id: 'catstreet',
+    outdoor: true,
     name: 'Cat Street',
     nameJa: 'キャットストリート',
     mapsQuery: 'Cat Street, Shibuya, Tokyo',
@@ -276,6 +282,7 @@ export const PLACES: Place[] = [
   },
   {
     id: 'shibuya',
+    outdoor: true,
     name: 'Shibuya Scramble Crossing',
     label: 'Shibuya',
     nameJa: '渋谷スクランブル交差点',
@@ -297,6 +304,7 @@ export const PLACES: Place[] = [
   },
   {
     id: 'hachiko',
+    outdoor: true,
     name: 'Hachikō Statue',
     nameJa: 'ハチ公像',
     mapsQuery: 'Hachiko Statue, Shibuya',
@@ -335,6 +343,7 @@ export const PLACES: Place[] = [
   },
   {
     id: 'kabukicho',
+    outdoor: true,
     name: 'Kabukichō',
     nameJa: '歌舞伎町',
     mapsQuery: 'Kabukicho Ichibangai, Shinjuku',

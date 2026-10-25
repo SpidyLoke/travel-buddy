@@ -22,6 +22,9 @@ export type CategoryId =
   | 'lockers'
   | 'souvenirs'
   | 'station'
+  | 'halal'
+  | 'vegetarian'
+  | 'prayer'
 
 export interface Category {
   id: CategoryId
@@ -42,6 +45,26 @@ export const CATEGORIES: Category[] = [
   },
   { id: 'konbini', label: 'Konbini', radiusM: 700, filters: ['["shop"="convenience"]'], note: 'Food, drinks, toilets in many, and 7-Eleven ATMs.' },
   { id: 'food', label: 'Food', radiusM: 600, filters: ['["amenity"~"^(restaurant|fast_food|food_court)$"]'] },
+  {
+    id: 'halal',
+    label: 'Halal',
+    radiusM: 2000,
+    filters: ['["diet:halal"~"yes|only"]', '["cuisine"~"halal",i]', '["name"~"halal|ハラル",i]'],
+    note: 'From OpenStreetMap tags: confirm halal status with the restaurant.',
+  },
+  {
+    id: 'vegetarian',
+    label: 'Vegetarian',
+    radiusM: 1500,
+    filters: ['["diet:vegetarian"~"yes|only"]', '["diet:vegan"~"yes|only"]', '["cuisine"~"vegetarian|vegan",i]'],
+  },
+  {
+    id: 'prayer',
+    label: 'Prayer space',
+    radiusM: 5000,
+    filters: ['["amenity"="place_of_worship"]["religion"="muslim"]', '["amenity"="prayer_room"]'],
+    note: 'Mosques and mapped prayer rooms. Many stations and department stores have prayer rooms too: ask at information.',
+  },
   { id: 'ramen', label: 'Ramen', radiusM: 1200, filters: ['["cuisine"~"ramen",i]'] },
   { id: 'cafe', label: 'Café', radiusM: 700, filters: ['["amenity"="cafe"]'] },
   { id: 'toilets', label: 'Toilets', radiusM: 800, filters: ['["amenity"="toilets"]'], note: 'Stations, parks and department stores almost always have free toilets too.' },
@@ -62,7 +85,7 @@ export interface NearbyResult {
 
 const OVERPASS = ['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter']
 
-function makePlace(id: string, name: string, nameJa: string, lat: number, lng: number, area: string, extra: Partial<Place> = {}): Place {
+export function makePlace(id: string, name: string, nameJa: string, lat: number, lng: number, area: string, extra: Partial<Place> = {}): Place {
   return {
     id,
     name,
@@ -82,7 +105,7 @@ function makePlace(id: string, name: string, nameJa: string, lat: number, lng: n
   }
 }
 
-interface OsmElement {
+export interface OsmElement {
   type: string
   id: number
   lat?: number
@@ -91,7 +114,7 @@ interface OsmElement {
   tags?: Record<string, string>
 }
 
-async function overpass(query: string, signal?: AbortSignal): Promise<OsmElement[]> {
+export async function overpass(query: string, signal?: AbortSignal): Promise<OsmElement[]> {
   let lastErr: unknown
   for (const url of OVERPASS) {
     try {

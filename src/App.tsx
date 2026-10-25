@@ -11,6 +11,7 @@ import { SettingsSheet } from './components/SettingsSheet'
 import { ConverterSheet } from './components/ConverterSheet'
 import { ImportSheet } from './components/ImportSheet'
 import { ShareSheet } from './components/ShareSheet'
+import { FoodSheet, type MealSlot } from './components/Food'
 import { JoinLobbySheet, LobbyBar, LobbySheet } from './components/Lobby'
 import { resetDonki } from './components/Donki'
 import { TrainGuide } from './components/TrainGuide'
@@ -21,11 +22,13 @@ import { useOnline } from './hooks/useOnline'
 import { PhotosProvider } from './hooks/usePhotos'
 import { useLobby } from './hooks/useLobby'
 import { usePrefs } from './hooks/usePrefs'
+import { useTrip } from './hooks/useTrip'
 import { useTheme } from './hooks/useTheme'
-import { existingHome, homeTrip, homeTripFromHere } from './lib/home'
+import { existingHome, homePlace, homeTrip, homeTripFromHere } from './lib/home'
 import { adviseSchedule, buildTimeline } from './lib/schedule'
-import { nowMinJst } from './lib/time'
-import { PLACES } from './data/places'
+import { nowMinJst, todayJst } from './lib/time'
+import { refreshWeather } from './lib/weather'
+import { PLACES, placeLabel } from './data/places'
 import { refreshFx } from './lib/fx'
 import { clearIncoming, decodePlan, incomingCode, incomingLobby } from './lib/share'
 import type { ItineraryState, Place } from './types'
@@ -43,8 +46,10 @@ export default function App() {
   const [wizard, setWizard] = useState<'new' | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [converterOpen, setConverterOpen] = useState(false)
+  const [foodFor, setFoodFor] = useState<MealSlot | null>(null)
   const [shareOpen, setShareOpen] = useState(false)
 
+  const tripPlan = useTrip(itin)
   const lobby = useLobby(itin)
   const [lobbyOpen, setLobbyOpen] = useState(false)
 
@@ -60,6 +65,16 @@ export default function App() {
     } else if (code) decodePlan(code).then((plan) => (plan ? setIncoming(plan) : clearIncoming()))
     // Only on first load.
   }, [])
+
+  // Weather for the trip's dates at home (or central Tokyo); re-render when it arrives.
+  const [, setWxTick] = useState(0)
+  const wxHome = homePlace(itin.state)
+  const wxAt = Number.isFinite(wxHome.lat) ? wxHome : { lat: 35.68, lng: 139.76 }
+  const wxDates = [...new Set([todayJst(), ...tripPlan.days.map((d) => d.date ?? todayJst())])].join(',')
+  useEffect(() => {
+    if (online) refreshWeather(wxAt, wxDates.split(',')).then(() => setWxTick((t) => t + 1))
+    // wxAt is captured via its rounded coordinates in the key below.
+  }, [online, wxDates, `${wxAt.lat.toFixed(2)},${wxAt.lng.toFixed(2)}`])
 
   // Exchange rates: refresh when online; re-render once they arrive.
   const [, setFxTick] = useState(0)
@@ -116,6 +131,8 @@ export default function App() {
           online={online}
           openSettings={() => setSettingsOpen(true)}
           openConverter={() => setConverterOpen(true)}
+          tripPlan={tripPlan}
+          openFood={setFoodFor}
           lobbyBar={<LobbyBar lobby={lobby} onOpen={() => setLobbyOpen(true)} />}
           planNew={planNew}
           openJourney={() => timeline.nextIndex >= 0 && setJourneyStopId(timeline.entries[timeline.nextIndex].stop.id)}
@@ -140,6 +157,8 @@ export default function App() {
           planNew={planNew}
           openShare={() => setShareOpen(true)}
           lobbyBar={<LobbyBar lobby={lobby} onOpen={() => setLobbyOpen(true)} />}
+          tripPlan={tripPlan}
+          openFood={setFoodFor}
         />
       )}
       {tab === 'nearby' && <NearbyView geo={geo} timeline={timeline} itin={itin} online={online} showOnMap={showOnMap} />}
@@ -186,6 +205,15 @@ export default function App() {
           }}
         />
       )}
+      {foodFor && (
+        <FoodSheet
+          title={`${foodFor.meal.label} near ${placeLabel(foodFor.place)}`}
+          near={foodFor.place}
+          gps={gps}
+          online={online}
+          onClose={() => setFoodFor(null)}
+        />
+      )}
       {converterOpen && <ConverterSheet online={online} onClose={() => setConverterOpen(false)} />}
       {shareOpen && (
         <ShareSheet
@@ -207,9 +235,9 @@ export default function App() {
           prefs={prefs.prefs}
           visited={loadVisited()}
           onCancel={prefs.prefs.onboarded ? () => setWizard(null) : undefined}
-          onDone={(state, patch) => {
+          onDone={(days, patch) => {
             prefs.update(patch)
-            itin.replace(state)
+            tripPlan.setDays(days)
             resetDonki()
             setWizard(null)
             setTab('home')

@@ -57,6 +57,8 @@ export interface Place extends LatLng {
   closedNote?: string
   /** Not shown in guides or used by the planner (e.g. a personal start point). */
   hidden?: boolean
+  /** Mostly outdoors: worth a warning when rain is forecast. */
+  outdoor?: boolean
 }
 
 export interface Station extends LatLng {

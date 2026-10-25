@@ -7,6 +7,9 @@ Live site: **https://spidyloke.github.io/travel-buddy/**
 ## What it does
 
 - **First-run setup** (about a minute): where you're staying (search or current location), date and hours, interests, pace, LUUP plan (none / pay per ride / subscription), optional must-sees, then a generated day plan to accept or reshuffle. "Plan a new day" any time from Settings or the Itinerary tab; places visited on earlier days can be skipped.
+- **Multi-day trips**: plan up to 7 days at once. Must-sees are split across days by geography, places never repeat, later days relax interest matching so they still fill up. Day tabs in the Itinerary; Home offers to switch to today's day.
+- **Weather**: Open-Meteo forecast (free, no key) for the trip dates, up to 16 days ahead: day summary, temperatures on day tabs, and a warning on outdoor stops when rain is 50%+ around your arrival time. Warn only, the plan is never changed automatically.
+- **Food**: lunch (~12:30) and dinner (~19:00) rows in the itinerary at wherever you'll be, and a Home card at meal times. Ideas from OpenStreetMap, filtered by your food needs (halal / Muslim-friendly, vegetarian, no seafood); halal also lists mosques and prayer rooms within 5 km. Halal, Vegetarian and Prayer space categories in Nearby.
 - **Planner** (`src/lib/planner.ts`): scores ~35 destinations by popularity and your interests, inserts the best ones where they add the least travel, and keeps the day feasible against typical opening hours, closed days (e.g. Imperial Palace East Gardens on Mon/Fri, Tsukiji on Sun/Wed) and your finish time. Time-of-day aware: shrines and markets early, views at dusk, nightlife late. One stop per area, then a reordering pass to remove zigzags.
 - **Home**: Japan time, where you are (street-level), next stop, which line/direction/stop, the next action, Navigate, recommended mode with price and reason, schedule advice, Don Quijote picker when your plan passes one. 🏠 opens the route back to where you're staying from wherever you are.
 - **Map**: your position, numbered stops, stations for upcoming train legs, walking route (OpenStreetMap foot routing), found places pinned.
@@ -16,7 +19,7 @@ Live site: **https://spidyloke.github.io/travel-buddy/**
 - **Group lobby** (peer to peer): start a lobby from Share, invite by link or QR, everyone edits one live plan. Visited / skip / reorder / add / time changes sync to every phone that has the app open, with who's online and a feed of who changed what. Phones connect directly over WebRTC (Trystero, public Nostr relays used only to find each other, data encrypted with the lobby code); nothing is stored on a server, so a phone catches up when it is opened while another member is online. Copies merge deterministically (last-writer-wins registers per stop, order and day settings, with tombstones for deletions; `src/lib/lobby.ts`).
 - **Share**: send a one-off copy of a plan as a link or QR code. The plan travels inside the link (compressed, nothing uploaded); opening it on another phone offers to load it.
 - **Currency**: yen ↔ your currency converter (default MYR) with live reference rates (European Central Bank via Frankfurter, fallback ExchangeRate-API), kept for offline use; converted amounts shown next to fares and the day's transport total.
-- **Settings**: home, LUUP plan, interests, currency, theme, start over.
+- **Settings**: home, LUUP plan, interests, food needs, currency, theme, start over.
 - Offline: app shell, saved plan and previously viewed map tiles and photos.
 
 ### Prices

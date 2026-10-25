@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { Check, Crosshair, Home, JapaneseYen, Settings, Share, Sparkles, X, ListChecks, LocateFixed, Navigation, SkipForward, WifiOff } from 'lucide-react'
+import { Check, Crosshair, Home, JapaneseYen, Utensils, Settings, Share, Sparkles, X, ListChecks, LocateFixed, Navigation, SkipForward, WifiOff } from 'lucide-react'
 import { findTrainLeg } from '../data/legs'
 import { PLACES, placeLabel } from '../data/places'
 import type { Geo } from '../hooks/useGeolocation'
@@ -7,17 +7,21 @@ import { POOR_ACCURACY_M } from '../hooks/useGeolocation'
 import type { ItineraryApi } from '../hooks/useItinerary'
 import { distanceKm, formatDistance, OFF_ROUTE_KM } from '../lib/geo'
 import { directionsUrl, modeToGoogle } from '../lib/maps'
+import type { TripApi } from '../hooks/useTrip'
 import type { HomeTrip } from '../lib/home'
 import { reverseGeocode } from '../lib/nearby'
 import { inHome } from '../lib/fx'
 import { costFor, recommend } from '../lib/pricing'
 import { load, save } from '../lib/storage'
 import type { Advice, Timeline } from '../lib/schedule'
-import { dateLabel, fmtDuration, fmtMin, jstClock, jstDateLabel, planDayStatus } from '../lib/time'
+import { dateLabel, fmtDuration, fmtMin, jstClock, jstDateLabel, nowMinJst, planDayStatus, todayJst } from '../lib/time'
 import type { LatLng, Place } from '../types'
 import { buildTrainSteps, LineSummary, MODE_META } from './Journey'
 import { DonkiCard } from './Donki'
 import { PlacePhoto } from './PlacePhoto'
+import { mealSlots, type MealSlot } from './Food'
+import { DIET_LABEL, getPrefs } from '../lib/prefs'
+import { RainWarning, WeatherBadge } from './Weather'
 import { LocationHelp } from './LocationHelp'
 import { Button, Card, LinkButton, Notice, Pill } from './ui'
 
@@ -31,6 +35,8 @@ interface Props {
   openSettings: () => void
   openConverter: () => void
   lobbyBar: ReactNode
+  tripPlan: TripApi
+  openFood: (slot: MealSlot) => void
   planNew: () => void
   openJourney: () => void
   showOnMap: (p: Place) => void
@@ -41,7 +47,7 @@ interface Props {
 /** Within this radius of the next stop we treat the user as having arrived. */
 const ARRIVED_KM = 0.35
 
-export function Dashboard({ now, geo, itin, timeline, advice, online, openSettings, openConverter, lobbyBar, planNew, openJourney, showOnMap, trip, openHome }: Props) {
+export function Dashboard({ now, geo, itin, timeline, advice, online, openSettings, openConverter, lobbyBar, tripPlan, openFood, planNew, openJourney, showOnMap, trip, openHome }: Props) {
   const cur = timeline.nextIndex >= 0 ? timeline.entries[timeline.nextIndex] : undefined
   const total = timeline.entries.length
   const done = timeline.entries.filter((e) => e.stop.status === 'done').length
@@ -66,6 +72,10 @@ export function Dashboard({ now, geo, itin, timeline, advice, online, openSettin
       ? buildTrainSteps(leg, cur.place)[0]?.title
       : undefined
   const day = planDayStatus(itin.state.date, now)
+  const prefs = getPrefs()
+  // From an hour before a meal until an hour after, on the day itself.
+  const nowMin = nowMinJst(now)
+  const mealSoon = day === 'today' || day === 'undated' ? mealSlots(timeline).find((m) => nowMin >= m.meal.at - 60 && nowMin <= m.meal.at + 60) : undefined
   const rec = cur ? recommend(cur.prev, cur.place) : null
   const cost = cur ? costFor(cur.prev, cur.place, mode) : null
 
@@ -73,7 +83,9 @@ export function Dashboard({ now, geo, itin, timeline, advice, online, openSettin
     <div className="pt-safe bottom-nav-space px-4 space-y-3">
       <header className="flex items-end justify-between pt-2">
         <div>
-          <div className="text-[13px] font-semibold text-muted">{jstDateLabel(now)} · Japan time</div>
+          <div className="text-[13px] font-semibold text-muted">
+            {jstDateLabel(now)} · Japan time <WeatherBadge date={todayJst(now)} />
+          </div>
           <div className="text-4xl font-bold tracking-tight tabular-nums">{jstClock(now)}</div>
         </div>
         <div className="flex items-center gap-2">
@@ -97,7 +109,19 @@ export function Dashboard({ now, geo, itin, timeline, advice, online, openSettin
       <InstallHint />
       {lobbyBar}
 
-      {(day === 'future' || day === 'past') && (
+      {tripPlan.todayIndex >= 0 && tripPlan.todayIndex !== tripPlan.active && (
+        <Notice
+          tone="info"
+          action={
+            <Button className="min-h-9 px-3 text-[13px]" onClick={() => tripPlan.switchDay(tripPlan.todayIndex)}>
+              Switch
+            </Button>
+          }
+        >
+          Today is Day {tripPlan.todayIndex + 1} of your trip.
+        </Notice>
+      )}
+      {(day === 'future' || day === 'past') && tripPlan.todayIndex < 0 && (
         <Notice
           tone={day === 'future' ? 'info' : 'warn'}
           action={
@@ -106,7 +130,7 @@ export function Dashboard({ now, geo, itin, timeline, advice, online, openSettin
             </Button>
           }
         >
-          {day === 'future' ? `Showing your plan for ${dateLabel(itin.state.date!)}. Times assume that day.` : `This plan was for ${dateLabel(itin.state.date!)}.`}
+          {day === 'future' ? `Showing ${tripPlan.days.length > 1 ? `Day ${tripPlan.active + 1}, ` : 'your plan for '}${dateLabel(itin.state.date!)}. Times assume that day.` : `This plan was for ${dateLabel(itin.state.date!)}.`}
         </Notice>
       )}
 
@@ -198,6 +222,9 @@ export function Dashboard({ now, geo, itin, timeline, advice, online, openSettin
                 <div className="text-xl font-bold tabular-nums">{fmtMin(arrived ? cur.projectedDepart : cur.projectedArrive)}</div>
                 {distToNext != null && !arrived && <div className="text-[13px] text-muted">{formatDistance(distToNext)} away</div>}
               </div>
+            </div>
+            <div className="mt-2 empty:hidden">
+              <RainWarning place={cur.place} date={itin.state.date ?? todayJst()} atMin={cur.projectedArrive} />
             </div>
             {arrived && <p className="mt-2 text-[15px]">Enjoy it. Tap <b>Visited</b> when you leave and the next stop loads.</p>}
           </Card>
@@ -309,6 +336,19 @@ export function Dashboard({ now, geo, itin, timeline, advice, online, openSettin
             <Sparkles size={18} /> Plan another day
           </Button>
         </Card>
+      )}
+
+      {mealSoon && (
+        <button onClick={() => openFood(mealSoon)} className="flex w-full items-center gap-3 rounded-3xl bg-card p-4 text-left">
+          <div className="size-11 shrink-0 rounded-2xl bg-warn/20 grid place-items-center">
+            <Utensils size={20} className="text-[#a66a00] dark:text-warn" />
+          </div>
+          <span className="min-w-0 flex-1">
+            <span className="block text-[12px] font-bold uppercase tracking-wider text-muted">{mealSoon.meal.label} time</span>
+            <span className="block text-[17px] font-semibold">Food ideas near {placeLabel(mealSoon.place)}</span>
+            {prefs.diet.length > 0 && <span className="block text-[13px] text-muted">{prefs.diet.map((d) => DIET_LABEL[d]).join(' · ')}</span>}
+          </span>
+        </button>
       )}
 
       <DonkiCard timeline={timeline} gps={livePos} showOnMap={showOnMap} />

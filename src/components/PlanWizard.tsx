@@ -1,13 +1,15 @@
 import { ArrowLeft, Check, Home, MapPin, Shuffle, Sparkles, TriangleAlert, X } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { getPlace, PLACES, placeLabel } from '../data/places'
 import type { Geo } from '../hooks/useGeolocation'
-import { planDay, planToItinerary, type PlanInput } from '../lib/planner'
-import { INTEREST_LABEL, INTERESTS, withPrefs, type Prefs } from '../lib/prefs'
+import { addDays, planToItinerary, planTrip, type PlanInput } from '../lib/planner'
+import { DIET_LABEL, INTEREST_LABEL, INTERESTS, withPrefs, type Diet, type Prefs } from '../lib/prefs'
 import { dateLabel, fmtDuration, fmtMin, nowMinJst, parseHm, todayJst } from '../lib/time'
 import type { Interest, ItineraryState, LuupPlan, Pace, Place } from '../types'
 import { MODE_META } from './Journey'
+import { refreshWeather } from '../lib/weather'
 import { PlacePhoto } from './PlacePhoto'
+import { RainWarning, WeatherBadge } from './Weather'
 import { PlaceSearch } from './PlaceSearch'
 import { Button, Card, Notice } from './ui'
 
@@ -19,7 +21,8 @@ interface Props {
   initialHome: Place | null
   prefs: Prefs
   visited: string[]
-  onDone: (state: ItineraryState, prefs: Partial<Prefs>) => void
+  /** One plan per day of the trip. */
+  onDone: (days: ItineraryState[], prefs: Partial<Prefs>) => void
   onCancel?: () => void
 }
 
@@ -61,8 +64,11 @@ export function PlanWizard({ geo, firstRun, initialHome, prefs, visited, onDone,
   const [pace, setPace] = useState<Pace>(prefs.pace)
   const [luup, setLuup] = useState<LuupPlan>(prefs.luup)
   const [musts, setMusts] = useState<string[]>([])
+  const [diet, setDiet] = useState<Diet[]>(prefs.diet)
   const [skipVisited, setSkipVisited] = useState(visited.length > 0)
   const [seed, setSeed] = useState(0)
+  const [days, setDays] = useState(1)
+  const [shown, setShown] = useState(0)
 
   const startMin = parseHm(startText) ?? d.start
   const endMin = parseHm(endText) ?? 21 * 60
@@ -81,7 +87,17 @@ export function PlanWizard({ geo, firstRun, initialHome, prefs, visited, onDone,
   }
   // The planner reads the LUUP plan from prefs, so preview with the choice applied.
   // Inputs cannot change while the preview step is showing, so step + seed is enough.
-  const plan = useMemo(() => (step === 'preview' ? withPrefs({ luup }, () => planDay(input)) : null), [step, seed])
+  const trip = useMemo(
+    () => (step === 'preview' ? withPrefs({ luup }, () => planTrip({ ...input, startDate: date, days })) : null),
+    [step, seed],
+  )
+  const day = trip?.[Math.min(shown, (trip?.length ?? 1) - 1)]
+  // Forecast for the trip dates, so the preview can flag rainy outdoor stops.
+  const [, setWx] = useState(0)
+  useEffect(() => {
+    if (step === 'preview' && trip) refreshWeather(input.home, trip.map((d) => d.input.date)).then(() => setWx((n) => n + 1))
+  }, [step, trip])
+  const plan = day?.plan ?? null
 
   const mustOptions = PLACES.filter((p) => !p.hidden && p.tags?.length && p.kind !== 'shop' && (p.score ?? 0) >= 3).sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
   const toggle = <T,>(list: T[], v: T) => (list.includes(v) ? list.filter((x) => x !== v) : [...list, v])
@@ -162,8 +178,23 @@ export function PlanWizard({ geo, firstRun, initialHome, prefs, visited, onDone,
                 <span className="font-semibold">Wrap up by</span>
                 <input type="time" value={endText} onChange={(e) => setEndText(e.target.value)} className="bg-card-2 rounded-xl px-3 py-2 text-[16px] tabular-nums" />
               </label>
+              <div className="flex items-center justify-between gap-3">
+                <span className="font-semibold">Days</span>
+                <div className="flex items-center gap-2">
+                  <Button className="size-10 !min-h-10 !px-0" aria-label="One day fewer" disabled={days <= 1} onClick={() => setDays((n) => n - 1)}>
+                    –
+                  </Button>
+                  <span className="w-8 text-center text-lg font-bold tabular-nums">{days}</span>
+                  <Button className="size-10 !min-h-10 !px-0" aria-label="One day more" disabled={days >= 7} onClick={() => setDays((n) => n + 1)}>
+                    +
+                  </Button>
+                </div>
+              </div>
             </Card>
-            <p className="px-1 text-[14px] text-muted">{dateLabel(date)}. Opening days and hours are planned around this date.</p>
+            <p className="px-1 text-[14px] text-muted">
+              {days === 1 ? dateLabel(date) : `${dateLabel(date)} to ${dateLabel(addDays(date, days - 1))}`}. Opening days and hours are planned around
+              {days === 1 ? ' this date' : ' each date'}; the same hours apply every day.
+            </p>
             {timeError && <Notice tone="warn">{timeError}</Notice>}
           </div>
         )}
@@ -207,6 +238,19 @@ export function PlanWizard({ geo, firstRun, initialHome, prefs, visited, onDone,
               ))}
               <p className="px-1 text-[13px] text-muted">LUUP is Tokyo's e-scooter share. New riders sign up in the LUUP app with ID and a short rules quiz.</p>
             </div>
+            <h2 className="pt-2 text-xl font-bold">Food needs</h2>
+            <div className="flex flex-wrap gap-2">
+              {(Object.keys(DIET_LABEL) as Diet[]).map((d) => (
+                <button
+                  key={d}
+                  onClick={() => setDiet((l) => toggle(l, d))}
+                  className={`rounded-full px-3.5 py-2 text-[14px] font-semibold ${diet.includes(d) ? 'bg-accent text-white' : 'bg-card'}`}
+                >
+                  {DIET_LABEL[d]}
+                </button>
+              ))}
+            </div>
+            <p className="px-1 text-[13px] text-muted">Lunch and dinner ideas near your route will match these.</p>
             <h2 className="pt-2 text-xl font-bold">Must-sees (optional)</h2>
             <div className="flex flex-wrap gap-2">
               {mustOptions.map((p) => (
@@ -233,9 +277,25 @@ export function PlanWizard({ geo, firstRun, initialHome, prefs, visited, onDone,
 
         {step === 'preview' && plan && (
           <div className="pt-6 space-y-4">
-            <h1 className="text-3xl font-bold tracking-tight">Your day</h1>
+            <h1 className="text-3xl font-bold tracking-tight">{days > 1 ? 'Your trip' : 'Your day'}</h1>
+            {trip && trip.length > 1 && (
+              <div className="-mx-4 overflow-x-auto px-4 [scrollbar-width:none]">
+                <div className="flex gap-2 w-max">
+                  {trip.map((d, i) => (
+                    <button
+                      key={d.input.date}
+                      onClick={() => setShown(i)}
+                      className={`rounded-2xl px-3.5 py-2 text-left ${i === shown ? 'bg-accent text-white' : 'bg-card'}`}
+                    >
+                      <div className="text-[13px] font-bold">Day {i + 1}</div>
+                      <div className="text-[12px] opacity-80">{dateLabel(d.input.date)}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             <p className="text-muted">
-              {dateLabel(date)} · from {input.home.name}
+              {dateLabel(day!.input.date)} · from {input.home.name} <WeatherBadge date={day!.input.date} />
             </p>
             {plan.warnings.map((w) => (
               <Notice key={w} tone="warn">
@@ -264,6 +324,9 @@ export function PlanWizard({ geo, firstRun, initialHome, prefs, visited, onDone,
                         </div>
                         {s.place.name !== placeLabel(s.place) && <div className="text-[13px] text-muted">{s.place.name}</div>}
                         <div className="mt-1 text-[13px] text-accent">{s.note}</div>
+                        <div className="mt-1 empty:hidden">
+                          <RainWarning place={s.place} date={day!.input.date} atMin={s.arrive} />
+                        </div>
                         <PlacePhoto place={s.place} aspect="aspect-[21/9]" className="mt-2" />
                       </div>
                     </Card>
@@ -286,8 +349,10 @@ export function PlanWizard({ geo, firstRun, initialHome, prefs, visited, onDone,
         <div className="max-w-xl mx-auto space-y-2">
           {step === 'preview' ? (
             <>
-              <Button variant="primary" className="w-full min-h-14 text-[17px]" disabled={!plan?.stops.length} onClick={() => plan && onDone(planToItinerary(input, plan), { interests, pace, luup, onboarded: true })}>
-                <Check size={20} /> Use this plan
+              <Button variant="primary" className="w-full min-h-14 text-[17px]" disabled={!trip?.some((d) => d.plan.stops.length)}
+                onClick={() => trip && onDone(trip.map((d) => planToItinerary(d.input, d.plan)), { interests, pace, luup, diet, onboarded: true })}
+              >
+                <Check size={20} /> {days > 1 ? `Use this ${days}-day plan` : 'Use this plan'}
               </Button>
               <Button className="w-full" onClick={() => setSeed((n) => n + 1)}>
                 <Shuffle size={18} /> Show me a different mix
@@ -296,7 +361,7 @@ export function PlanWizard({ geo, firstRun, initialHome, prefs, visited, onDone,
           ) : (
             <>
               <Button variant="primary" className="w-full min-h-14 text-[17px]" disabled={step === 'when' && !!timeError} onClick={next}>
-                {step === 'welcome' ? "Let's plan" : step === 'extras' ? 'Build my day' : step === 'stay' && !home ? 'Skip for now' : 'Next'}
+                {step === 'welcome' ? "Let's plan" : step === 'extras' ? (days > 1 ? 'Build my trip' : 'Build my day') : step === 'stay' && !home ? 'Skip for now' : 'Next'}
               </Button>
               {step === 'stay' && !home && <p className="text-center text-[13px] text-muted">Skipping uses central Tokyo. Change it later in Settings.</p>}
             </>

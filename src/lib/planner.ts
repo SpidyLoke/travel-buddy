@@ -26,6 +26,10 @@ export interface PlanInput {
   excludeIds: string[]
   /** Small random nudge so "Shuffle" offers an alternative. */
   jitter?: number
+  /** Areas already covered on other days of the trip (skipped unless a must-see). */
+  avoidGroups?: string[]
+  /** Score penalty for places matching none of the interests (lower on later trip days). */
+  offInterestPenalty?: number
 }
 
 export interface PlannedStop {
@@ -57,11 +61,11 @@ const VALUE_MIN = 20
 
 const overlap = (p: Place, interests: Interest[]) => (p.tags ?? []).filter((t) => interests.includes(t))
 
-export function scorePlace(p: Place, interests: Interest[]): number {
+export function scorePlace(p: Place, interests: Interest[], offInterestPenalty = 3): number {
   const base = p.score ?? 1
   if (!interests.length) return base
   const n = overlap(p, interests).length
-  return base + 2.5 * n - (n === 0 ? 3 : 0)
+  return base + 2.5 * n - (n === 0 ? offInterestPenalty : 0)
 }
 
 /** Recommendation reason, e.g. "Anime & games · Views · best in the evening". */
@@ -82,6 +86,8 @@ function timePenalty(p: Place, start: number): number {
     case 'morning':
       return start > 12 * 60 ? (start - 12 * 60) / 3 : 0
     default:
+      // Parks and gardens are no fun after dark.
+      if (p.tags?.includes('nature') && start > 16 * 60 + 30) return (start - (16 * 60 + 30)) / 1.5
       return start > 19 * 60 ? (start - 19 * 60) / 2 : 0
   }
 }
@@ -169,7 +175,7 @@ export function planDay(input: PlanInput): PlanResult {
   // home still make a good end to the day.
   const doorstep = (p: Place) => distanceKm(p, input.home) < 0.3 && p.best !== 'night' && p.best !== 'evening'
   const pool = PLACES.filter((p) => !p.hidden && p.tags?.length && p.kind !== 'shop' && !exclude.has(p.id) && (musts.has(p.id) || !doorstep(p)))
-  const value = new Map(pool.map((p) => [p.id, (musts.has(p.id) ? 1000 : scorePlace(p, input.interests)) + rand()]))
+  const value = new Map(pool.map((p) => [p.id, (musts.has(p.id) ? 1000 : scorePlace(p, input.interests, input.offInterestPenalty)) + rand()]))
 
   for (const p of pool) {
     if (musts.has(p.id) && p.closedDays?.includes(weekday)) warnings.push(`${p.label ?? p.name}: ${p.closedNote ?? 'may be closed that day.'}`)
@@ -178,7 +184,7 @@ export function planDay(input: PlanInput): PlanResult {
 
   let route: Place[] = []
   let current = sim(route, musts)
-  const usedGroups = new Set<string>()
+  const usedGroups = new Set<string>(input.avoidGroups ?? [])
 
   // Best places first; each goes where it adds the least time, if the day still fits.
   remaining.sort((a, b) => value.get(b.id)! - value.get(a.id)!)
@@ -197,6 +203,27 @@ export function planDay(input: PlanInput): PlanResult {
     route = best.route
     current = best.sim
     if (p.group) usedGroups.add(p.group)
+  }
+
+  // A day should never come out empty: top up to a few stops with the best
+  // remaining places that still fit, even if they are a longer trip.
+  const MIN_STOPS = Math.min(3, max)
+  while (route.length < MIN_STOPS) {
+    let best: { route: Place[]; sim: Sim; gain: number; place: Place } | null = null
+    for (const p of remaining) {
+      if (route.includes(p) || (p.group && usedGroups.has(p.group))) continue
+      for (let i = 0; i <= route.length; i++) {
+        const cand = [...route.slice(0, i), p, ...route.slice(i)]
+        const s = sim(cand, musts)
+        if (!s.ok) continue
+        const gain = value.get(p.id)! * VALUE_MIN - (s.cost - current.cost)
+        if (!best || gain > best.gain) best = { route: cand, sim: s, gain, place: p }
+      }
+    }
+    if (!best) break
+    route = best.route
+    current = best.sim
+    if (best.place.group) usedGroups.add(best.place.group)
   }
 
   // Tidy-up: move single stops to cheaper positions while the day still fits.
@@ -265,4 +292,55 @@ export function planToItinerary(input: PlanInput, plan: PlanResult): ItinerarySt
     customPlaces: [home],
     date: input.date,
   }
+}
+
+export interface TripInput extends Omit<PlanInput, 'date' | 'mustIds'> {
+  startDate: string
+  days: number
+  mustIds: string[]
+}
+
+export interface TripDay {
+  input: PlanInput
+  plan: PlanResult
+}
+
+/** YYYY-MM-DD plus n days. */
+export function addDays(ymd: string, n: number): string {
+  const d = new Date(`${ymd}T03:00:00Z`)
+  d.setUTCDate(d.getUTCDate() + n)
+  return d.toISOString().slice(0, 10)
+}
+
+/**
+ * Plans several days at once: must-sees are split across days by geography
+ * (west to east, so each day stays in one part of town), and each day avoids
+ * places and areas already used on earlier days.
+ */
+export function planTrip(input: TripInput): TripDay[] {
+  const musts = input.mustIds
+    .map((id) => PLACES.find((p) => p.id === id))
+    .filter((p): p is Place => !!p)
+    .sort((a, b) => a.lng - b.lng)
+  const perDay = Math.ceil(musts.length / input.days)
+  const used = new Set(input.excludeIds)
+  const mustsFor = (d: number) => musts.slice(d * perDay, (d + 1) * perDay).map((p) => p.id)
+  const out: TripDay[] = []
+  for (let d = 0; d < input.days; d++) {
+    const mine = mustsFor(d)
+    // Other days' must-sees are kept for their own day.
+    const others = musts.map((p) => p.id).filter((id) => !mine.includes(id))
+    const day: PlanInput = {
+      ...input,
+      date: addDays(input.startDate, d),
+      mustIds: mine,
+      excludeIds: [...used, ...others],
+      // Later days run out of perfect matches: let classics back in.
+      offInterestPenalty: d === 0 ? 3 : 1,
+    }
+    const plan = planDay(day)
+    plan.stops.forEach((s) => used.add(s.place.id))
+    out.push({ input: day, plan })
+  }
+  return out
 }

@@ -1,8 +1,9 @@
 import { ArrowDown, ArrowUp, Check, ChevronDown, Clock, ListChecks, MapPin, Minus, Navigation, Plus, Share2, SkipForward, Sparkles, Trash2, Undo2 } from 'lucide-react'
-import { useState, type ReactNode } from 'react'
+import { Fragment, useState, type ReactNode } from 'react'
 import { getPlace, PLACES, placeLabel } from '../data/places'
 import type { ItineraryApi } from '../hooks/useItinerary'
 import type { Geo } from '../hooks/useGeolocation'
+import type { TripApi } from '../hooks/useTrip'
 import type { HomeTrip } from '../lib/home'
 import { inHome } from '../lib/fx'
 import { scorePlace, whyPlace } from '../lib/planner'
@@ -10,12 +11,14 @@ import { INTEREST_LABEL, INTERESTS, type Prefs } from '../lib/prefs'
 import { directionsUrl, modeToGoogle } from '../lib/maps'
 import { costFor, recommend } from '../lib/pricing'
 import type { Advice, Timeline } from '../lib/schedule'
-import { dateLabel, fmtDuration, fmtMin, parseHm } from '../lib/time'
+import { dateLabel, fmtDuration, fmtMin, parseHm, todayJst } from '../lib/time'
 import type { Interest, ItineraryStop, LatLng, Place, TransportMode } from '../types'
 import { MODE_META } from './Journey'
 import { HomeCard } from './HomeTrip'
 import { PlaceCard } from './PlaceCard'
 import { PlacePhoto } from './PlacePhoto'
+import { MealRow, mealSlots, type MealSlot } from './Food'
+import { DayWeatherNote, RainWarning, WeatherBadge } from './Weather'
 import { ShopChips } from './Donki'
 import { Button, Card, LinkButton, Notice, Pill, SectionTitle } from './ui'
 
@@ -33,9 +36,11 @@ interface Props {
   planNew: () => void
   openShare: () => void
   lobbyBar: ReactNode
+  tripPlan: TripApi
+  openFood: (slot: MealSlot) => void
 }
 
-export function ItineraryView({ itin, timeline, advice, gps, openJourney, showOnMap, trip, openHome, geo, prefs, planNew, openShare, lobbyBar }: Props) {
+export function ItineraryView({ itin, timeline, advice, gps, openJourney, showOnMap, trip, openHome, geo, prefs, planNew, openShare, lobbyBar, tripPlan, openFood }: Props) {
   const [tab, setTab] = useState<'day' | 'places'>('day')
   return (
     <div className="pt-safe bottom-nav-space px-4">
@@ -54,6 +59,28 @@ export function ItineraryView({ itin, timeline, advice, gps, openJourney, showOn
         </div>
       </div>
       {lobbyBar && <div className="mt-3">{lobbyBar}</div>}
+      {tripPlan.days.length > 1 && (
+        <div className="-mx-4 mt-3 overflow-x-auto px-4 [scrollbar-width:none]">
+          <div className="flex gap-2 w-max">
+            {tripPlan.days.map((d, i) => (
+              <button
+                key={d.date ?? i}
+                onClick={() => tripPlan.switchDay(i)}
+                aria-pressed={i === tripPlan.active}
+                className={`rounded-2xl px-3.5 py-2 text-left ${i === tripPlan.active ? 'bg-accent text-white' : 'bg-card'}`}
+              >
+                <div className="text-[13px] font-bold">
+                  Day {i + 1}
+                  {i === tripPlan.todayIndex && ' · today'}
+                </div>
+                <div className="text-[12px] opacity-80">
+                  {d.date ? dateLabel(d.date) : ''} <WeatherBadge date={d.date} />
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       <div className="mt-3 grid grid-cols-2 rounded-2xl bg-card p-1 text-[15px] font-semibold">
         {(['day', 'places'] as const).map((t) => (
           <button key={t} onClick={() => setTab(t)} className={`rounded-xl py-2 ${tab === t ? 'bg-accent text-white' : 'text-muted'}`}>
@@ -62,7 +89,7 @@ export function ItineraryView({ itin, timeline, advice, gps, openJourney, showOn
         ))}
       </div>
       {tab === 'day' ? (
-        <DayList itin={itin} timeline={timeline} advice={advice} gps={gps} openJourney={openJourney} showOnMap={showOnMap} trip={trip} openHome={openHome} geo={geo} />
+        <DayList itin={itin} timeline={timeline} advice={advice} gps={gps} openJourney={openJourney} showOnMap={showOnMap} trip={trip} openHome={openHome} geo={geo} openFood={openFood} />
       ) : (
         <PlacesGuide itin={itin} gps={gps} showOnMap={showOnMap} interests={prefs.interests} />
       )}
@@ -70,8 +97,9 @@ export function ItineraryView({ itin, timeline, advice, gps, openJourney, showOn
   )
 }
 
-function DayList({ itin, timeline, advice, gps, openJourney, showOnMap, trip, openHome, geo }: Omit<Props, 'prefs' | 'planNew' | 'openShare' | 'lobbyBar'>) {
+function DayList({ itin, timeline, advice, gps, openJourney, showOnMap, trip, openHome, geo, openFood }: Omit<Props, 'prefs' | 'planNew' | 'openShare' | 'lobbyBar' | 'tripPlan'>) {
   const { state } = itin
+  const meals = mealSlots(timeline)
   const [startText, setStartText] = useState(fmtMin(state.startMin))
   const [endText, setEndText] = useState(fmtMin(state.endMin))
   const start = getPlace(state.startPlaceId)
@@ -85,6 +113,7 @@ function DayList({ itin, timeline, advice, gps, openJourney, showOnMap, trip, op
 
   return (
     <div className="space-y-3 pt-3">
+      <DayWeatherNote date={itin.state.date ?? todayJst()} />
       <Notice
         tone={advice.tone === 'ok' ? 'ok' : advice.tone === 'warn' ? 'warn' : 'bad'}
         action={
@@ -147,6 +176,7 @@ function DayList({ itin, timeline, advice, gps, openJourney, showOnMap, trip, op
 
       <ol className="space-y-3">
         {state.stops.map((stop, i) => (
+          <Fragment key={stop.id}>
           <StopCard
             key={stop.id}
             stop={stop}
@@ -158,6 +188,14 @@ function DayList({ itin, timeline, advice, gps, openJourney, showOnMap, trip, op
             openJourney={openJourney}
             showOnMap={showOnMap}
           />
+          {meals
+            .filter((m) => m.stopId === stop.id && stop.status === 'pending')
+            .map((m) => (
+              <li key={m.meal.label}>
+                <MealRow slot={m} onOpen={() => openFood(m)} />
+              </li>
+            ))}
+          </Fragment>
         ))}
       </ol>
 
@@ -244,6 +282,7 @@ function StopCard({ stop, index, count, itin, timeline, gps, openJourney, showOn
               <Clock size={13} /> Stay {fmtDuration(stop.durationMin)}
             </Pill>
             {stop.must && <Pill className="bg-accent/12 text-accent">Your pick</Pill>}
+            {entry && stop.status === 'pending' && <RainWarning place={place} date={itin.state.date ?? todayJst()} atMin={entry.projectedArrive} />}
             <ShopChips stopPlaceId={place.id} />
             {place.closesLabel && <Pill className="bg-warn/15 text-[#a66a00] dark:text-warn">{place.closesLabel}</Pill>}
             <button className="ml-auto text-muted" onClick={() => setOpen((v) => !v)} aria-label="More">

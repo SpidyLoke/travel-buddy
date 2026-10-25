@@ -12,6 +12,7 @@ const P = (p: Omit<Place, 'activities' | 'nearestStation'> & Partial<Pick<Place,
 export const MORE_PLACES: Place[] = [
   P({
     id: 'meijijingu',
+    outdoor: true,
     name: 'Meiji Jingu',
     nameJa: '明治神宮',
     mapsQuery: 'Meiji Jingu, Shibuya, Tokyo',
@@ -33,6 +34,7 @@ export const MORE_PLACES: Place[] = [
   }),
   P({
     id: 'yoyogipark',
+    outdoor: true,
     name: 'Yoyogi Park',
     nameJa: '代々木公園',
     mapsQuery: 'Yoyogi Park, Tokyo',
@@ -51,6 +53,7 @@ export const MORE_PLACES: Place[] = [
   }),
   P({
     id: 'shinjukugyoen',
+    outdoor: true,
     name: 'Shinjuku Gyoen',
     nameJa: '新宿御苑',
     mapsQuery: 'Shinjuku Gyoen National Garden',
@@ -98,6 +101,7 @@ export const MORE_PLACES: Place[] = [
   }),
   P({
     id: 'omoide',
+    outdoor: true,
     name: 'Omoide Yokochō',
     nameJa: '思い出横丁',
     mapsQuery: 'Omoide Yokocho, Shinjuku',
@@ -118,6 +122,7 @@ export const MORE_PLACES: Place[] = [
   }),
   P({
     id: 'goldengai',
+    outdoor: true,
     name: 'Golden Gai',
     nameJa: 'ゴールデン街',
     mapsQuery: 'Shinjuku Golden Gai',
@@ -183,6 +188,7 @@ export const MORE_PLACES: Place[] = [
   }),
   P({
     id: 'tsukiji',
+    outdoor: true,
     name: 'Tsukiji Outer Market',
     nameJa: '築地場外市場',
     mapsQuery: 'Tsukiji Outer Market',
@@ -207,6 +213,7 @@ export const MORE_PLACES: Place[] = [
   }),
   P({
     id: 'imperialpalace',
+    outdoor: true,
     name: 'Imperial Palace East Gardens',
     nameJa: '皇居東御苑',
     mapsQuery: 'Imperial Palace East Gardens',
@@ -231,6 +238,7 @@ export const MORE_PLACES: Place[] = [
   }),
   P({
     id: 'odaiba',
+    outdoor: true,
     name: 'Odaiba Gundam',
     label: 'Odaiba',
     nameJa: 'お台場 ガンダム',
@@ -272,6 +280,7 @@ export const MORE_PLACES: Place[] = [
   }),
   P({
     id: 'yanaka',
+    outdoor: true,
     name: 'Yanaka Ginza',
     nameJa: '谷中銀座',
     mapsQuery: 'Yanaka Ginza Shopping Street',
@@ -294,6 +303,7 @@ export const MORE_PLACES: Place[] = [
   }),
   P({
     id: 'ameyoko',
+    outdoor: true,
     name: 'Ameyoko Market',
     nameJa: 'アメ横',
     mapsQuery: 'Ameyoko Shopping Street, Ueno',
@@ -316,6 +326,7 @@ export const MORE_PLACES: Place[] = [
   }),
   P({
     id: 'kappabashi',
+    outdoor: true,
     name: 'Kappabashi Kitchen Town',
     nameJa: 'かっぱ橋道具街',
     mapsQuery: 'Kappabashi Dougu Street',
@@ -340,6 +351,7 @@ export const MORE_PLACES: Place[] = [
   }),
   P({
     id: 'shimokita',
+    outdoor: true,
     name: 'Shimokitazawa',
     nameJa: '下北沢',
     mapsQuery: 'Shimokitazawa Station, Tokyo',
@@ -362,6 +374,7 @@ export const MORE_PLACES: Place[] = [
   }),
   P({
     id: 'shibuyasky',
+    outdoor: true,
     name: 'Shibuya Sky',
     nameJa: '渋谷スカイ',
     mapsQuery: 'SHIBUYA SKY, Shibuya Scramble Square',

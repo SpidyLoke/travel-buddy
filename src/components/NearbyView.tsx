@@ -1,6 +1,6 @@
 import {
   Banknote, Coffee, Crosshair, ExternalLink, Footprints, Gift, House, Landmark, LoaderCircle, Lock, MapPin, Pill, Plus, Search,
-  ShoppingBag, Soup, Store, Toilet, TrainFront, Utensils, X,
+  Moon, Salad, ShoppingBag, Soup, Store, Toilet, TrainFront, Utensils, X,
 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { placeLabel } from '../data/places'
@@ -29,6 +29,9 @@ const ICONS: Record<CategoryId, typeof Store> = {
   lockers: Lock,
   souvenirs: Gift,
   station: TrainFront,
+  halal: Utensils,
+  vegetarian: Salad,
+  prayer: Moon,
 }
 
 const CAT_KEY = 'tokyo-day:nearby-cat'
