@@ -34,6 +34,8 @@ export interface Place extends LatLng {
   notes?: string[]
   /** Shopping stops such as Don Quijote. */
   kind?: 'sight' | 'shop'
+  /** Found in the app (search or nearby) rather than built in. */
+  custom?: boolean
 }
 
 export interface Station extends LatLng {
@@ -101,6 +103,8 @@ export interface ItineraryState {
   lastDepartedAt?: number
   /** Where the day ends up. A known place gets step-by-step routes; a free-text address gets live directions only. */
   home?: HomeSetting
+  /** Places added from search or nearby, so stops can refer to them by id. */
+  customPlaces?: Place[]
 }
 
 export interface HomeSetting {
@@ -108,6 +112,8 @@ export interface HomeSetting {
   /** Google Maps search text. */
   query: string
   placeId?: string
+  lat?: number
+  lng?: number
 }
 
 export type ThemePref = 'system' | 'light' | 'dark'

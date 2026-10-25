@@ -1,14 +1,15 @@
-import { Home, Moon, Navigation, Pencil } from 'lucide-react'
+import { Flag, Home, Moon, Navigation, Pencil } from 'lucide-react'
 import { useState } from 'react'
 import { DEFAULT_HOME } from '../data/itinerary'
 import { placeLabel } from '../data/places'
 import type { ItineraryApi } from '../hooks/useItinerary'
-import { LATE_LEAVE_MIN, type HomeTrip } from '../lib/home'
+import { hasCoords, LATE_LEAVE_MIN, type HomeTrip } from '../lib/home'
+import { recommend } from '../lib/pricing'
 import { directionsUrl } from '../lib/maps'
 import { fmtDuration, fmtMin } from '../lib/time'
-import type { LatLng } from '../types'
+import type { LatLng, TransportMode } from '../types'
 import { CopyJaButton } from './CopyJaButton'
-import { TrainMode } from './Journey'
+import { ModeContent, TrainMode, TransportCompare } from './Journey'
 import { Button, Card, LinkButton, Notice, Sheet } from './ui'
 
 function LateWarning({ trip }: { trip: HomeTrip }) {
@@ -23,35 +24,84 @@ function LateWarning({ trip }: { trip: HomeTrip }) {
 function Times({ trip }: { trip: HomeTrip }) {
   return (
     <span>
-      Leave {placeLabel(trip.from)} ~{fmtMin(trip.leaveMin)}
-      {trip.arriveMin != null && ` · home ~${fmtMin(trip.arriveMin)} (${fmtDuration(trip.travel!.min)})`}
+      {trip.kind === 'here' ? `Leave now from ${trip.from.id === 'here' ? 'your location' : placeLabel(trip.from)}` : `Leave ${placeLabel(trip.from)} ~${fmtMin(trip.leaveMin)}`}
+      {trip.arriveMin != null && ` · home ~${fmtMin(trip.arriveMin)} (${fmtDuration(trip.travel!.min)}${trip.travel!.source === 'calc' ? '*' : ''})`}
     </span>
   )
 }
 
-/** Full route home: steps, live directions, late-night and taxi fallback. */
-export function HomeSheet({ trip, gps, onClose }: { trip: HomeTrip; gps: LatLng | null; onClose: () => void }) {
+interface SheetProps {
+  planTrip: HomeTrip
+  hereTrip: HomeTrip | null
+  gps: LatLng | null
+  pendingStops: number
+  onEndDay: () => void
+  onClose: () => void
+}
+
+/** Route home from where you are now, or after the plan: steps, live directions, last train, taxi. */
+export function HomeSheet({ planTrip, hereTrip, gps, pendingStops, onEndDay, onClose }: SheetProps) {
+  const [kind, setKind] = useState<'here' | 'plan'>(hereTrip ? 'here' : 'plan')
+  const trip = kind === 'here' && hereTrip ? hereTrip : planTrip
+  const [mode, setMode] = useState<TransportMode>(() => (hasCoords(trip.home) ? recommend(trip.from, trip.home).mode : 'train'))
+  const canCompare = hasCoords(trip.home) && trip.from.id !== trip.home.id
+
   return (
     <Sheet
       title={
-        <span className="flex items-center gap-2">
-          <Home size={20} className="text-accent" /> Back to {trip.home.name}
+        <span className="flex items-center gap-2 truncate">
+          <Home size={20} className="text-accent shrink-0" /> Home: {trip.home.name}
         </span>
       }
       onClose={onClose}
     >
       <div className="space-y-3">
+        <div className="grid grid-cols-2 rounded-2xl bg-card p-1 text-[14px] font-semibold">
+          <button
+            disabled={!hereTrip}
+            onClick={() => setKind('here')}
+            className={`rounded-xl py-2 disabled:opacity-40 ${kind === 'here' && hereTrip ? 'bg-accent text-white' : 'text-muted'}`}
+          >
+            From here, now
+          </button>
+          <button onClick={() => setKind('plan')} className={`rounded-xl py-2 ${kind === 'plan' || !hereTrip ? 'bg-accent text-white' : 'text-muted'}`}>
+            After the plan
+          </button>
+        </div>
+        {!hereTrip && <p className="px-1 text-[13px] text-muted">Turn on location on Home to plan the trip from where you are.</p>}
+
         <div className="px-1 text-[15px] text-muted">
           <Times trip={trip} />
         </div>
         <LateWarning trip={trip} />
+
+        {kind === 'here' && hereTrip && pendingStops > 0 && (
+          <Button
+            variant="danger"
+            className="w-full"
+            onClick={() => {
+              if (confirm(`End the day here? The ${pendingStops} remaining stop${pendingStops > 1 ? 's' : ''} will be marked skipped (you can restore them).`)) onEndDay()
+            }}
+          >
+            <Flag size={16} /> End the day here ({pendingStops} stop{pendingStops > 1 ? 's' : ''} left)
+          </Button>
+        )}
+
+        {canCompare ? (
+          <>
+            <TransportCompare from={trip.from} to={trip.home} selected={mode} onSelect={setMode} />
+            <ModeContent mode={mode} from={trip.from} to={trip.home} origin={gps ?? trip.from} />
+          </>
+        ) : (
+          <TrainMode from={trip.from} to={trip.home} origin={gps ?? trip.from} />
+        )}
+
         <Notice tone="warn">
           <span className="flex gap-2">
             <Moon size={18} className="shrink-0 mt-0.5" />
-            <span>Most Tokyo lines stop running around midnight. Before you settle in at Shinjuku, open live directions and check the last train home.</span>
+            <span>Most Tokyo lines stop running around midnight. If it is late, open live directions and check the last train before anything else.</span>
           </span>
         </Notice>
-        <TrainMode from={trip.from} to={trip.home} origin={gps ?? trip.from} />
         <Card className="p-4 space-y-2">
           <div className="text-[17px] font-semibold">Missed the last train?</div>
           <p className="text-[15px] text-muted">Take a taxi or use the GO or Uber app. Show the driver the Japanese name:</p>

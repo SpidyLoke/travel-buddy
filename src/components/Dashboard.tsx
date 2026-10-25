@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Check, Crosshair, Home, Share, X, ListChecks, LocateFixed, Navigation, SkipForward, SunMoon, Moon, Sun, WifiOff } from 'lucide-react'
 import { findTrainLeg } from '../data/legs'
 import { PLACES, placeLabel } from '../data/places'
@@ -8,11 +8,12 @@ import type { ItineraryApi } from '../hooks/useItinerary'
 import { distanceKm, formatDistance, OFF_ROUTE_KM } from '../lib/geo'
 import { directionsUrl, modeToGoogle } from '../lib/maps'
 import type { HomeTrip } from '../lib/home'
+import { reverseGeocode } from '../lib/nearby'
 import { costFor, recommend } from '../lib/pricing'
 import { load, save } from '../lib/storage'
 import type { Advice, Timeline } from '../lib/schedule'
 import { fmtDuration, fmtMin, jstClock, jstDateLabel } from '../lib/time'
-import type { Place, ThemePref } from '../types'
+import type { LatLng, Place, ThemePref } from '../types'
 import { buildTrainSteps, LineSummary, MODE_META } from './Journey'
 import { DonkiCard } from './Donki'
 import { LocationHelp } from './LocationHelp'
@@ -41,6 +42,7 @@ export function Dashboard({ now, geo, itin, timeline, advice, online, theme, ope
   const done = timeline.entries.filter((e) => e.stop.status === 'done').length
   const pos = geo.position
 
+  const street = useStreetName(geo.status === 'active' && !geo.outsideTokyo ? pos : null, online)
   const nearest = pos
     ? PLACES.map((p) => ({ p, d: distanceKm(pos, p) })).sort((a, b) => a.d - b.d)[0]
     : null
@@ -118,8 +120,14 @@ export function Dashboard({ now, geo, itin, timeline, advice, online, theme, ope
         {pos && nearest ? (
           <div className="mt-1">
             <div className="text-[22px] font-bold leading-tight">
-              {nearest.d < 0.5 ? `At ${nearest.p.name}` : `${formatDistance(nearest.d)} from ${placeLabel(nearest.p)}`}
+              {nearest.d < 0.5 ? `At ${nearest.p.name}` : (street ?? `${formatDistance(nearest.d)} from ${placeLabel(nearest.p)}`)}
             </div>
+            {street && nearest.d < 0.5 && <div className="text-[14px] text-muted">{street}</div>}
+            {street && nearest.d >= 0.5 && (
+              <div className="text-[14px] text-muted">
+                {formatDistance(nearest.d)} from {placeLabel(nearest.p)}
+              </div>
+            )}
             <div className="mt-1 text-[13px] text-muted flex items-center gap-1.5 flex-wrap">
               <LocateFixed size={14} />
               {geo.status === 'paused' ? (
@@ -279,6 +287,24 @@ export function Dashboard({ now, geo, itin, timeline, advice, online, theme, ope
       <DonkiCard timeline={timeline} gps={livePos} showOnMap={showOnMap} />
     </div>
   )
+}
+
+/** Street / neighbourhood for the current position; refetched after ~150 m of movement. */
+function useStreetName(pos: LatLng | null, online: boolean): string | null {
+  const [name, setName] = useState<string | null>(null)
+  const last = useRef<LatLng | null>(null)
+  useEffect(() => {
+    if (!pos || !online) return
+    if (last.current && distanceKm(last.current, pos) < 0.15) return
+    last.current = pos
+    // Not aborted on re-render: small GPS updates must not cancel the lookup.
+    reverseGeocode(pos)
+      .then((n) => last.current === pos && setName(n))
+      .catch(() => {
+        last.current = null
+      })
+  }, [pos, online])
+  return pos ? name : null
 }
 
 const HINT_KEY = 'tokyo-day:install-hint-dismissed'

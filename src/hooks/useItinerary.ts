@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { DEFAULT_ITINERARY } from '../data/itinerary'
-import { PLACE_BY_ID } from '../data/places'
+import { PLACE_BY_ID, registerPlace } from '../data/places'
 import { distanceKm } from '../lib/geo'
 import { recommend } from '../lib/pricing'
 import { load, save } from '../lib/storage'
@@ -10,6 +10,7 @@ const KEY = 'tokyo-day:itinerary:v1'
 
 function sanitise(s: ItineraryState): ItineraryState {
   if (!s || s.version !== 1 || !Array.isArray(s.stops)) return DEFAULT_ITINERARY
+  s.customPlaces?.forEach(registerPlace)
   return { ...s, stops: s.stops.filter((st) => PLACE_BY_ID[st.placeId]) }
 }
 
@@ -77,6 +78,21 @@ export function useItinerary() {
     })
   }, [])
 
+  /** Adds a place found in the app (not built in) as a stop. */
+  const addCustom = useCallback(
+    (place: Place) => {
+      registerPlace(place)
+      setState((s) => ({ ...s, customPlaces: [...(s.customPlaces ?? []).filter((p) => p.id !== place.id), place] }))
+      add(place.id)
+    },
+    [add],
+  )
+
+  /** Ends the day early: every stop not yet visited is marked skipped. */
+  const skipRemaining = useCallback(() => {
+    setState((s) => ({ ...s, stops: s.stops.map((st) => (st.status === 'pending' ? { ...st, status: 'skipped' } : st)) }))
+  }, [])
+
   const remove = useCallback((id: string) => {
     setState((s) => ({ ...s, stops: s.stops.filter((st) => st.id !== id) }))
   }, [])
@@ -89,7 +105,7 @@ export function useItinerary() {
   const setHome = useCallback((home: HomeSetting) => setState((s) => ({ ...s, home })), [])
   const reset = useCallback(() => setState(DEFAULT_ITINERARY), [])
 
-  return { state, updateStop, setStatus, move, add, remove, setStart, setEnd, setAllTransport, setHome, reset }
+  return { state, updateStop, setStatus, move, add, remove, setStart, setEnd, setAllTransport, setHome, addCustom, skipRemaining, reset }
 }
 
 export type ItineraryApi = ReturnType<typeof useItinerary>

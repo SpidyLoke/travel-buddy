@@ -5,6 +5,7 @@ import { ItineraryView } from './components/ItineraryView'
 import { HomeSheet } from './components/HomeTrip'
 import { JourneySheet } from './components/JourneySheet'
 import { MapView } from './components/MapView'
+import { NearbyView } from './components/NearbyView'
 import { TrainGuide } from './components/TrainGuide'
 import { useGeolocation } from './hooks/useGeolocation'
 import { useItinerary } from './hooks/useItinerary'
@@ -12,7 +13,7 @@ import { useNow } from './hooks/useNow'
 import { useOnline } from './hooks/useOnline'
 import { PhotosProvider } from './hooks/usePhotos'
 import { useTheme } from './hooks/useTheme'
-import { homeTrip } from './lib/home'
+import { homeTrip, homeTripFromHere } from './lib/home'
 import { adviseSchedule, buildTimeline } from './lib/schedule'
 import { nowMinJst } from './lib/time'
 import type { Place } from './types'
@@ -31,6 +32,8 @@ export default function App() {
   const timeline = useMemo(() => buildTimeline(itin.state, nowMin), [itin.state, nowMin])
   const advice = useMemo(() => adviseSchedule(itin.state, timeline), [itin.state, timeline])
   const trip = useMemo(() => homeTrip(itin.state, timeline, nowMin), [itin.state, timeline, nowMin])
+  const gpsLive = geo.status === 'active' && !geo.outsideTokyo ? geo.position : null
+  const hereTrip = useMemo(() => (gpsLive ? homeTripFromHere(itin.state, gpsLive, nowMin) : null), [itin.state, gpsLive, nowMin])
   const [homeOpen, setHomeOpen] = useState(false)
 
   // Nothing left to navigate to: stop GPS to save battery.
@@ -62,7 +65,7 @@ export default function App() {
           theme={theme}
           openJourney={() => timeline.nextIndex >= 0 && setJourneyStopId(timeline.entries[timeline.nextIndex].stop.id)}
           showOnMap={showOnMap}
-          trip={trip}
+          trip={hereTrip ?? trip}
           openHome={() => setHomeOpen(true)}
         />
       )}
@@ -79,6 +82,7 @@ export default function App() {
           openHome={() => setHomeOpen(true)}
         />
       )}
+      {tab === 'nearby' && <NearbyView geo={geo} timeline={timeline} itin={itin} online={online} showOnMap={showOnMap} />}
       {tab === 'guide' && <TrainGuide />}
 
       <BottomNav
@@ -89,7 +93,16 @@ export default function App() {
         }}
       />
 
-      {homeOpen && <HomeSheet trip={trip} gps={gps} onClose={() => setHomeOpen(false)} />}
+      {homeOpen && (
+        <HomeSheet
+          planTrip={trip}
+          hereTrip={hereTrip}
+          gps={gps}
+          pendingStops={itin.state.stops.filter((s) => s.status === 'pending').length}
+          onEndDay={itin.skipRemaining}
+          onClose={() => setHomeOpen(false)}
+        />
+      )}
       {journey && (
         <JourneySheet
           from={journey.prev}

@@ -44,7 +44,15 @@ function resolver(query: { normalized?: { from: string; to: string }[]; redirect
 
 const plainText = (html: string) => new DOMParser().parseFromString(html, 'text/html').body.textContent?.trim() ?? ''
 
+/** Destination photos, cached for a week. */
 export async function fetchPhotos(titles: string[], signal?: AbortSignal): Promise<Record<string, Photo | null>> {
+  const out = await fetchPhotoInfo(titles, signal)
+  save<Cache>(KEY, { at: Date.now(), photos: out })
+  return out
+}
+
+/** Lead photo and credit for each article title. Not cached. */
+export async function fetchPhotoInfo(titles: string[], signal?: AbortSignal): Promise<Record<string, Photo | null>> {
   const unique = [...new Set(titles)]
   const res = await fetch(api(WIKI, { prop: 'pageimages', piprop: 'name', pilicense: 'free', redirects: '1', titles: unique.join('|') }), { signal })
   if (!res.ok) throw new Error(`Wikipedia ${res.status}`)
@@ -93,6 +101,5 @@ export async function fetchPhotos(titles: string[], signal?: AbortSignal): Promi
     const file = fileByPage.get(toFinal(t))
     out[t] = (file && infoByFile.get(file)) || null
   }
-  save<Cache>(KEY, { at: Date.now(), photos: out })
   return out
 }

@@ -323,6 +323,11 @@ export const PLACES: Place[] = [
 
 export const PLACE_BY_ID: Record<string, Place> = Object.fromEntries(PLACES.map((p) => [p.id, p]))
 
+/** Makes a place found at runtime (search, nearby) resolvable by id everywhere. */
+export function registerPlace(p: Place): void {
+  if (!PLACE_BY_ID[p.id]) PLACE_BY_ID[p.id] = p
+}
+
 export function getPlace(id: string): Place {
   const p = PLACE_BY_ID[id]
   if (!p) throw new Error(`Unknown place ${id}`)

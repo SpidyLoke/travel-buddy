@@ -132,6 +132,20 @@ export function MapView({ visible, geo, state, timeline, focus, online }: Props)
     }
   }, [geo.position, geo.accuracy, geo.outsideTokyo, visible])
 
+  // Places found in Nearby/search are not on the map otherwise: pin the focused one.
+  const focusLayer = useRef<L.LayerGroup | null>(null)
+  useEffect(() => {
+    if (!map.current) return
+    focusLayer.current ??= L.layerGroup().addTo(map.current)
+    focusLayer.current.clearLayers()
+    if (focus?.custom && !state.stops.some((s) => s.placeId === focus.id)) {
+      L.marker([focus.lat, focus.lng], { icon: L.divIcon({ className: '', html: '<div class="pin found">★</div>', iconSize: [30, 30] }), zIndexOffset: 1500 })
+        .bindPopup(`<b>${focus.name}</b>${focus.nameJa !== focus.name ? `<br>${focus.nameJa}` : ''}`)
+        .addTo(focusLayer.current)
+        .openPopup()
+    }
+  }, [focus, state.stops])
+
   useEffect(() => {
     if (focus && visible) {
       map.current?.setView([focus.lat, focus.lng], 16)
