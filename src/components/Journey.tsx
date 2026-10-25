@@ -3,6 +3,7 @@ import { findLeg } from '../data/legs'
 import { placeLabel } from '../data/places'
 import { formatDistance } from '../lib/geo'
 import { directionsUrl, LUUP_URL } from '../lib/maps'
+import { costFor, luupCost, LUUP_BLOCK_MIN, LUUP_BLOCK_YEN, recommend } from '../lib/pricing'
 import { estimateTravel } from '../lib/schedule'
 import { fmtDuration } from '../lib/time'
 import type { LatLng, Leg, Place, TrainSegment, TransportMode } from '../types'
@@ -111,7 +112,7 @@ export function TransportCompare({ from, to, selected, onSelect }: CompareProps)
   const modes: TransportMode[] = ['train', 'luup', 'walk']
   const est = Object.fromEntries(modes.map((m) => [m, estimateTravel(from, to, m)])) as Record<TransportMode, ReturnType<typeof estimateTravel>>
   const walkTooFar = est.walk.km > 3.5
-  const best = leg?.recommended ?? (est.walk.km < 1.2 ? 'walk' : 'train')
+  const rec = recommend(from, to)
 
   return (
     <div>
@@ -129,22 +130,31 @@ export function TransportCompare({ from, to, selected, onSelect }: CompareProps)
             >
               <div className="flex items-center justify-between">
                 <Icon size={20} className={colour} />
-                {best === m && <span className="text-[10px] font-bold uppercase text-accent">Best</span>}
+                {rec.mode === m && <span className="text-[10px] font-bold uppercase text-accent">Best</span>}
               </div>
               <div className="mt-2 font-semibold">{label}</div>
+              <div className="text-[17px] font-bold tabular-nums">{costFor(from, to, m).label}</div>
               <div className="text-[13px] text-muted">
                 ~{fmtDuration(e.min)}
                 {e.source === 'calc' && '*'}
               </div>
               <div className="text-[12px] text-muted">
-                {m === 'train' ? (leg ? `${leg.segments.length - 1} transfer${leg.segments.length === 2 ? '' : 's'}` : 'See Maps') : m === 'walk' ? (walkTooFar ? 'Long walk' : 'Free') : 'Per-minute'}
+                {m === 'train' ? (leg ? `${leg.segments.length - 1} transfer${leg.segments.length === 2 ? '' : 's'}` : 'Fare in Maps') : m === 'walk' ? (walkTooFar ? 'Long walk' : formatDistance(e.km)) : `¥${LUUP_BLOCK_YEN}/${LUUP_BLOCK_MIN} min`}
               </div>
             </button>
           )
         })}
       </div>
+      <div className="mt-2 rounded-2xl bg-accent/10 px-4 py-3 text-[14px]">
+        <span className="font-bold text-accent">Recommended: {MODE_META[rec.mode].label}.</span> {rec.why}
+        {selected !== rec.mode && (
+          <button className="ml-1 font-semibold text-accent underline" onClick={() => onSelect(rec.mode)}>
+            Switch
+          </button>
+        )}
+      </div>
       <p className="mt-2 px-1 text-[12px] text-muted leading-snug">
-        About {formatDistance(est.train.km)}. Times are planning estimates{Object.values(est).some((e) => e.source === 'calc') ? '; * = calculated from distance' : ''}. Train fares depend on the route: Google Maps shows the IC fare. LUUP shows its price in the app before you ride.
+        About {formatDistance(est.train.km)}. Times are planning estimates{Object.values(est).some((e) => e.source === 'calc') ? '; * = calculated from distance' : ''}. Train = adult Suica fare, checked Oct 2026{leg?.fareApprox ? ' (~ = could be one distance band off)' : ''}. LUUP = your subscription, ¥{LUUP_BLOCK_YEN} per started {LUUP_BLOCK_MIN} min.
       </p>
     </div>
   )
@@ -162,7 +172,14 @@ export function TrainMode({ from, to, origin }: ModeProps) {
     <div className="space-y-3">
       {leg ? (
         <>
-          <LineSummary leg={leg} />
+          <div className="flex items-center justify-between gap-2">
+            <LineSummary leg={leg} />
+            {leg.trainFareYen != null && (
+              <span className="shrink-0 text-[15px] font-bold tabular-nums">
+                {leg.fareApprox && '~'}¥{leg.trainFareYen} <span className="text-[12px] font-medium text-muted">Suica</span>
+              </span>
+            )}
+          </div>
           <StepList steps={buildTrainSteps(leg, to)} />
           {leg.alternatives?.map((a, i) => (
             <Notice key={i} tone="info">
@@ -207,7 +224,10 @@ export function LuupMode({ from, to, origin }: ModeProps) {
   return (
     <div className="space-y-3">
       <Card className="p-4">
-        <div className="text-[17px] font-semibold">Ride about {fmtDuration(e.min)}*</div>
+        <div className="text-[17px] font-semibold">
+          Ride about {fmtDuration(e.min)}
+          {e.source === 'calc' && '*'} · ¥{luupCost(e.min)}
+        </div>
         <div className="mt-1 text-[15px] text-muted">
           {leg?.luupNote ?? `Roughly ${formatDistance(e.km)} by road. Find a port near you in the LUUP app and pick a return port near ${placeLabel(to)} before you unlock.`}
         </div>
@@ -227,7 +247,7 @@ export function LuupMode({ from, to, origin }: ModeProps) {
       </LinkButton>
       <p className="px-1 text-[12px] text-muted flex gap-1.5">
         <Info size={14} className="shrink-0 mt-0.5" />
-        This app has no scooter-legal routing or live scooter/port data. Google opens in cycling mode; if it falls back to walking paths, stay on roads. Port locations and availability are only in the LUUP app. *Calculated from distance.
+        This app has no scooter-legal routing or live scooter/port data. Google opens in cycling mode; if it falls back to walking paths, stay on roads. Port locations and availability are only in the LUUP app. Price assumes your subscription rate; going past {LUUP_BLOCK_MIN} min starts another block.
       </p>
     </div>
   )

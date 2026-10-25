@@ -63,6 +63,12 @@ export interface Leg {
   /** Approximate distance in km along the likely route. */
   distanceKm?: number
   recommended: TransportMode
+  /** One-line reason shown next to the recommendation. */
+  why: string
+  /** Adult IC (Suica) fare in yen for the train option, by the operator's distance band. */
+  trainFareYen?: number
+  /** Set when the fare sits near a distance-band edge and could be one band off. */
+  fareApprox?: boolean
   walkToStation?: string
   segments: TrainSegment[]
   exitTip?: string

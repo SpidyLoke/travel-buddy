@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { getPlace, PLACES, placeLabel } from '../data/places'
 import type { ItineraryApi } from '../hooks/useItinerary'
 import { directionsUrl, modeToGoogle } from '../lib/maps'
+import { costFor, recommend } from '../lib/pricing'
 import type { Advice, Timeline } from '../lib/schedule'
 import { fmtDuration, fmtMin, parseHm } from '../lib/time'
 import type { ItineraryStop, LatLng, Place, TransportMode } from '../types'
@@ -44,6 +45,13 @@ function DayList({ itin, timeline, advice, gps, openJourney, showOnMap }: Props)
   const { state } = itin
   const [startText, setStartText] = useState(fmtMin(state.startMin))
   const start = getPlace(state.startPlaceId)
+  const dayCost = timeline.entries.reduce(
+    (acc, e) => {
+      const c = costFor(e.prev, e.place, e.stop.transport)
+      return c.yen == null ? { ...acc, unknown: acc.unknown + 1 } : { ...acc, yen: acc.yen + c.yen }
+    },
+    { yen: 0, unknown: 0 },
+  )
 
   return (
     <div className="space-y-3 pt-3">
@@ -113,6 +121,9 @@ function DayList({ itin, timeline, advice, gps, openJourney, showOnMap }: Props)
       <div className="flex justify-between items-center pt-1 px-1">
         <span className="text-[13px] text-muted">
           Planned finish {fmtMin(timeline.plannedEnd)} · now ~{fmtMin(timeline.projectedEnd)}
+          <br />
+          Transport today ≈ ¥{dayCost.yen.toLocaleString('en-GB')}
+          {dayCost.unknown > 0 && ` + ${dayCost.unknown} fare${dayCost.unknown > 1 ? 's' : ''} in Maps`}
         </span>
         <Button
           variant="ghost"
@@ -182,8 +193,16 @@ function StopCard({ stop, index, count, itin, timeline, gps, openJourney, showOn
           <div className="mt-3 flex flex-wrap items-center gap-2 text-[13px]">
             <Pill className="bg-card-2">
               <Icon size={14} className={colour} /> {label}
-              {entry && ` ~${fmtDuration(entry.travel.min)}${entry.travel.source === 'calc' ? '*' : ''}`}
+              {entry && ` ~${fmtDuration(entry.travel.min)}${entry.travel.source === 'calc' ? '*' : ''} · ${costFor(entry.prev, place, stop.transport).label}`}
             </Pill>
+            {entry && stop.status === 'pending' && recommend(entry.prev, place).mode !== stop.transport && (
+              <button
+                className="rounded-full bg-accent/12 px-2.5 py-1 text-xs font-semibold text-accent"
+                onClick={() => itin.updateStop(stop.id, { transport: recommend(entry.prev, place).mode })}
+              >
+                Try {MODE_META[recommend(entry.prev, place).mode].label}
+              </button>
+            )}
             <Pill className="bg-card-2">
               <Clock size={13} /> Stay {fmtDuration(stop.durationMin)}
             </Pill>

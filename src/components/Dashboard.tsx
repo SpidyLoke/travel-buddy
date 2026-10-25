@@ -7,6 +7,7 @@ import { POOR_ACCURACY_M } from '../hooks/useGeolocation'
 import type { ItineraryApi } from '../hooks/useItinerary'
 import { distanceKm, formatDistance } from '../lib/geo'
 import { directionsUrl, modeToGoogle } from '../lib/maps'
+import { costFor, recommend } from '../lib/pricing'
 import type { Advice, Timeline } from '../lib/schedule'
 import { fmtDuration, fmtMin, jstClock, jstDateLabel } from '../lib/time'
 import type { ThemePref } from '../types'
@@ -43,6 +44,8 @@ export function Dashboard({ now, geo, itin, timeline, advice, online, theme, ope
   const mode = cur?.stop.transport ?? 'train'
   const ModeIcon = MODE_META[mode].Icon
   const firstStep = cur && leg && mode === 'train' ? buildTrainSteps(leg, cur.place)[0]?.title : undefined
+  const rec = cur ? recommend(cur.prev, cur.place) : null
+  const cost = cur ? costFor(cur.prev, cur.place, mode) : null
   const ThemeIcon = theme.pref === 'dark' ? Moon : theme.pref === 'light' ? Sun : SunMoon
 
   return (
@@ -140,7 +143,7 @@ export function Dashboard({ now, geo, itin, timeline, advice, online, theme, ope
           </Card>
 
           {/* HOW DO I GET THERE */}
-          {!arrived && (
+          {!arrived && rec && cost && (
             <Card className="p-4 space-y-3">
               <Label>How do I get there?</Label>
               <div className="flex items-center gap-3">
@@ -150,11 +153,28 @@ export function Dashboard({ now, geo, itin, timeline, advice, online, theme, ope
                 <div className="min-w-0">
                   <div className="text-[17px] font-semibold">
                     {MODE_META[mode].label} · ~{fmtDuration(cur.travel.min)}
-                    {cur.travel.source === 'calc' && '*'}
+                    {cur.travel.source === 'calc' && '*'} · {cost.label}
                   </div>
                   <div className="text-[13px] text-muted">From {placeLabel(cur.prev)}</div>
                 </div>
               </div>
+              {rec.mode === mode ? (
+                <div className="text-[14px] leading-snug">
+                  <span className="font-bold text-accent">Recommended.</span> <span className="text-muted">{rec.why}</span>
+                </div>
+              ) : (
+                <div className="rounded-2xl bg-accent/10 px-3 py-2.5 text-[14px] leading-snug flex items-center gap-3">
+                  <span className="flex-1">
+                    <span className="font-bold text-accent">
+                      {MODE_META[rec.mode].label} is better here ({costFor(cur.prev, cur.place, rec.mode).label}).
+                    </span>{' '}
+                    {rec.why}
+                  </span>
+                  <Button variant="primary" className="min-h-9 px-3 text-[13px] shrink-0" onClick={() => itin.updateStop(cur.stop.id, { transport: rec.mode })}>
+                    Switch
+                  </Button>
+                </div>
+              )}
               {mode === 'train' && leg && (
                 <div className="space-y-2">
                   <LineSummary leg={leg} />

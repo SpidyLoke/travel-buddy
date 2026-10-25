@@ -2,8 +2,13 @@ import type { Leg, Station } from '../types'
 
 // Hand-written route guidance for the default itinerary (and common skips).
 // Lines, directions and stop sequences are fixed network facts. Times are
-// planning estimates only; platforms, departures and fares are never stated
-// here. "Open live train directions" hands off to Google Maps for those.
+// planning estimates. Platforms and departures are never stated here:
+// "Open live train directions" hands off to Google Maps for those.
+//
+// Train fares are adult IC (Suica) fares by distance band, checked Oct 2026:
+//   Tobu:        1–4 km ¥157, 5–7 km ¥178
+//   Tokyo Metro: 1–6 km ¥178, 7–11 km ¥209
+//   JR East (after the 14 Mar 2026 revision): 1–3 km ¥155, 4–6 km ¥199
 
 const S = {
   horikiri: { name: 'Horikiri', nameJa: '堀切', lat: 35.7433, lng: 139.8176 },
@@ -33,6 +38,8 @@ export const LEGS: Leg[] = [
   {
     from: 'horikiri',
     to: 'skytree',
+    why: 'Fastest and cheapest. You start at the station, 4 stops, no transfer.',
+    trainFareYen: 178,
     estimateMin: { train: 15 },
     distanceKm: 4.5,
     recommended: 'train',
@@ -57,6 +64,8 @@ export const LEGS: Leg[] = [
   {
     from: 'horikiri',
     to: 'sensoji',
+    why: 'Direct train, no transfer.',
+    trainFareYen: 178,
     estimateMin: { train: 20 },
     distanceKm: 5.5,
     recommended: 'train',
@@ -78,9 +87,11 @@ export const LEGS: Leg[] = [
   {
     from: 'skytree',
     to: 'sensoji',
-    estimateMin: { train: 10 },
+    why: 'Door to door across Azuma-bashi with river views, no station walking. About the same time as the 1-stop train.',
+    trainFareYen: 157,
+    estimateMin: { train: 10, luup: 12, walk: 20 },
     distanceKm: 1.6,
-    recommended: 'train',
+    recommended: 'luup',
     walkToStation: 'Go back down to Tokyo Skytree Station (Tobu Skytree Line).',
     segments: [
       {
@@ -101,6 +112,8 @@ export const LEGS: Leg[] = [
   {
     from: 'sensoji',
     to: 'akihabara',
+    why: 'Cheaper and faster than LUUP, and Chūō-dōri in Akihabara is usually car-free on Sunday afternoons, so you could not ride into it.',
+    trainFareYen: 178,
     estimateMin: { train: 15 },
     distanceKm: 3.5,
     recommended: 'train',
@@ -125,6 +138,8 @@ export const LEGS: Leg[] = [
   {
     from: 'akihabara',
     to: 'ginza',
+    why: 'Direct on the Ginza Line. Ginza\'s Chūō-dōri is a car-free zone on Sunday afternoons, so LUUP would drop you short.',
+    trainFareYen: 178,
     estimateMin: { train: 15 },
     distanceKm: 3.5,
     recommended: 'train',
@@ -148,9 +163,11 @@ export const LEGS: Leg[] = [
   {
     from: 'ginza',
     to: 'tokyotower',
-    estimateMin: { train: 15 },
+    why: 'Rides straight to the tower and skips the 8–10 min uphill walk from Kamiyachō. Start from a port off Chūō-dōri (car-free on Sunday afternoons).',
+    trainFareYen: 178,
+    estimateMin: { train: 15, luup: 20 },
     distanceKm: 3,
-    recommended: 'train',
+    recommended: 'luup',
     walkToStation: 'At Ginza Station, follow the grey "H" Hibiya Line signs.',
     segments: [
       {
@@ -164,10 +181,13 @@ export const LEGS: Leg[] = [
       },
     ],
     exitTip: 'Follow exit signs for 東京タワー (Tokyo Tower). About 7–10 minutes\' walk, slightly uphill.',
+    luupNote: 'About 3 km on wide main roads past Hibiya and Toranomon. In the app, pick a port near Shiba Park or Tokyo Tower as your return port before unlocking. Chūō-dōri in Ginza is car-free on Sunday afternoons, so start from a port on a side street.',
   },
   {
     from: 'ginza',
     to: 'takeshita',
+    why: 'One train, no transfer. Too far for a relaxed LUUP ride.',
+    trainFareYen: 178,
     estimateMin: { train: 25 },
     distanceKm: 6,
     recommended: 'train',
@@ -188,6 +208,9 @@ export const LEGS: Leg[] = [
   {
     from: 'tokyotower',
     to: 'takeshita',
+    why: 'About 6 km through Roppongi and Aoyama in evening traffic and fading light. The train is safer and cheaper than two LUUP blocks.',
+    trainFareYen: 209,
+    fareApprox: true,
     estimateMin: { train: 45 },
     distanceKm: 6,
     recommended: 'train',
@@ -218,6 +241,8 @@ export const LEGS: Leg[] = [
   {
     from: 'takeshita',
     to: 'shibuya',
+    why: 'Cat Street is the attraction and it is free. Takeshita Street is a no-ride zone anyway.',
+    trainFareYen: 155,
     estimateMin: { train: 10, walk: 20 },
     distanceKm: 1.6,
     recommended: 'walk',
@@ -240,6 +265,8 @@ export const LEGS: Leg[] = [
   {
     from: 'shibuya',
     to: 'shinjuku',
+    why: 'Three stops, frequent trains. Night traffic on Meiji-dōri and Shinjuku crowds make LUUP harder, and no riding after a drink.',
+    trainFareYen: 199,
     estimateMin: { train: 15 },
     distanceKm: 3.5,
     recommended: 'train',
