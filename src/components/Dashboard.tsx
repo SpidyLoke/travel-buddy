@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react'
-import { Check, Crosshair, Share, X, ListChecks, LocateFixed, MapPin, Navigation, SkipForward, SunMoon, Moon, Sun, WifiOff } from 'lucide-react'
+import { Check, Crosshair, Home, Share, X, ListChecks, LocateFixed, Navigation, SkipForward, SunMoon, Moon, Sun, WifiOff } from 'lucide-react'
 import { findTrainLeg } from '../data/legs'
 import { PLACES, placeLabel } from '../data/places'
 import type { Geo } from '../hooks/useGeolocation'
@@ -7,6 +7,7 @@ import { POOR_ACCURACY_M } from '../hooks/useGeolocation'
 import type { ItineraryApi } from '../hooks/useItinerary'
 import { distanceKm, formatDistance, OFF_ROUTE_KM } from '../lib/geo'
 import { directionsUrl, modeToGoogle } from '../lib/maps'
+import type { HomeTrip } from '../lib/home'
 import { costFor, recommend } from '../lib/pricing'
 import { load, save } from '../lib/storage'
 import type { Advice, Timeline } from '../lib/schedule'
@@ -27,12 +28,14 @@ interface Props {
   theme: { pref: ThemePref; cycle: () => void }
   openJourney: () => void
   showOnMap: (p: Place) => void
+  trip: HomeTrip
+  openHome: () => void
 }
 
 /** Within this radius of the next stop we treat the user as having arrived. */
 const ARRIVED_KM = 0.35
 
-export function Dashboard({ now, geo, itin, timeline, advice, online, theme, openJourney, showOnMap }: Props) {
+export function Dashboard({ now, geo, itin, timeline, advice, online, theme, openJourney, showOnMap, trip, openHome }: Props) {
   const cur = timeline.nextIndex >= 0 ? timeline.entries[timeline.nextIndex] : undefined
   const total = timeline.entries.length
   const done = timeline.entries.filter((e) => e.stop.status === 'done').length
@@ -72,6 +75,9 @@ export function Dashboard({ now, geo, itin, timeline, advice, online, theme, ope
               <WifiOff size={14} /> Offline
             </Pill>
           )}
+          <button aria-label="Route home" onClick={openHome} className="size-10 grid place-items-center rounded-full bg-card">
+            <Home size={18} />
+          </button>
           <button aria-label={`Theme: ${theme.pref}`} onClick={theme.cycle} className="size-10 grid place-items-center rounded-full bg-card">
             <ThemeIcon size={18} />
           </button>
@@ -247,10 +253,26 @@ export function Dashboard({ now, geo, itin, timeline, advice, online, theme, ope
           {cur.travel.source === 'calc' && <p className="px-1 text-[12px] text-muted">*Travel time calculated from distance, not a timetable.</p>}
         </>
       ) : (
-        <Card className="p-6 text-center">
-          <MapPin className="mx-auto text-accent" />
-          <div className="mt-2 text-xl font-bold">All stops done</div>
-          <p className="mt-1 text-muted">Add more from the Itinerary tab, or head back to your hotel.</p>
+        <Card className="p-4 space-y-3">
+          <div className="flex items-center gap-3">
+            <div className="size-11 rounded-2xl bg-accent text-white grid place-items-center">
+              <Home size={22} />
+            </div>
+            <div className="min-w-0">
+              <div className="text-[12px] font-bold uppercase tracking-wider text-muted">All stops done · head home</div>
+              <div className="text-[22px] font-bold leading-tight">{trip.home.name}</div>
+              <div className="text-[13px] text-muted">
+                {trip.arriveMin != null ? `Leave now, home ~${fmtMin(trip.arriveMin)}` : 'Live directions from where you are'}
+              </div>
+            </div>
+          </div>
+          {trip.leg && <LineSummary leg={trip.leg} />}
+          <LinkButton variant="primary" className="w-full min-h-14 text-[18px]" href={directionsUrl(trip.home, 'transit', livePos ?? undefined)}>
+            <Navigation size={20} /> Navigate home
+          </LinkButton>
+          <Button className="w-full" onClick={openHome}>
+            <ListChecks size={18} /> Steps, last train &amp; taxi
+          </Button>
         </Card>
       )}
 

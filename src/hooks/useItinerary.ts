@@ -4,7 +4,7 @@ import { PLACE_BY_ID } from '../data/places'
 import { distanceKm } from '../lib/geo'
 import { recommend } from '../lib/pricing'
 import { load, save } from '../lib/storage'
-import type { ItineraryState, ItineraryStop, Place, StopStatus, TransportMode } from '../types'
+import type { HomeSetting, ItineraryState, ItineraryStop, Place, StopStatus, TransportMode } from '../types'
 
 const KEY = 'tokyo-day:itinerary:v1'
 
@@ -86,9 +86,10 @@ export function useItinerary() {
   const setAllTransport = useCallback((transport: TransportMode) => {
     setState((s) => ({ ...s, stops: s.stops.map((st) => (st.status === 'pending' ? { ...st, transport } : st)) }))
   }, [])
+  const setHome = useCallback((home: HomeSetting) => setState((s) => ({ ...s, home })), [])
   const reset = useCallback(() => setState(DEFAULT_ITINERARY), [])
 
-  return { state, updateStop, setStatus, move, add, remove, setStart, setEnd, setAllTransport, reset }
+  return { state, updateStop, setStatus, move, add, remove, setStart, setEnd, setAllTransport, setHome, reset }
 }
 
 export type ItineraryApi = ReturnType<typeof useItinerary>

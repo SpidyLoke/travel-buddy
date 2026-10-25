@@ -11,7 +11,7 @@ import type { Leg, Station } from '../types'
 //   JR East (after the 14 Mar 2026 revision): 1–3 km ¥155, 4–6 km ¥199
 
 const S = {
-  horikiri: { name: 'Horikiri', nameJa: '堀切', lat: 35.7433, lng: 139.8176 },
+  horikiri: { name: 'Horikiri', nameJa: '堀切', code: 'TS07', lat: 35.7433, lng: 139.8176 },
   skytreeTobu: { name: 'Tokyo Skytree', nameJa: 'とうきょうスカイツリー', code: 'TS02', lat: 35.71, lng: 139.8091 },
   asakusaTobu: { name: 'Asakusa', nameJa: '浅草', code: 'TS01', lat: 35.7116, lng: 139.798 },
   asakusaGinza: { name: 'Asakusa', nameJa: '浅草', code: 'G19', lat: 35.7107, lng: 139.7975 },
@@ -34,6 +34,10 @@ const S = {
   tokyoM: { name: 'Tokyo', nameJa: '東京', code: 'M17', lat: 35.6818, lng: 139.7652 },
   ginzaM: { name: 'Ginza', nameJa: '銀座', code: 'M16', lat: 35.6721, lng: 139.7637 },
   akabanebashi: { name: 'Akabanebashi', nameJa: '赤羽橋', code: 'E21', lat: 35.655, lng: 139.7434 },
+  nishiNipporiJR: { name: 'Nishi-Nippori', nameJa: '西日暮里', code: 'JY08', lat: 35.7322, lng: 139.7668 },
+  nishiNipporiC: { name: 'Nishi-Nippori', nameJa: '西日暮里', code: 'C16', lat: 35.7322, lng: 139.7668 },
+  kitaSenjuC: { name: 'Kita-Senju', nameJa: '北千住', code: 'C18', lat: 35.7497, lng: 139.8049 },
+  kitaSenjuTobu: { name: 'Kita-Senju', nameJa: '北千住', code: 'TS09', lat: 35.7497, lng: 139.8049 },
   roppongiE: { name: 'Roppongi', nameJa: '六本木', code: 'E23', lat: 35.6631, lng: 139.7316 },
 } satisfies Record<string, Station>
 
@@ -297,6 +301,49 @@ export const LEGS: Leg[] = [
     alternatives: [
       'The JR Saikyō Line and Shōnan-Shinjuku Line go non-stop to Shinjuku (1 stop). Check the platform sign shows 新宿.',
     ],
+  },
+  // Going home.
+  {
+    from: 'shinjuku',
+    to: 'horikiri',
+    why: 'Only sensible option late at night: about 13 km. Allow ~50 min with two changes.',
+    estimateMin: { train: 50 },
+    distanceKm: 13,
+    recommended: 'train',
+    walkToStation: 'Go back into JR Shinjuku Station by the East Exit (東口) and follow green Yamanote Line signs.',
+    segments: [
+      {
+        ...YAMANOTE,
+        from: S.shinjuku,
+        direction: 'Ikebukuro / Tabata',
+        directionJa: '池袋・田端',
+        stops: 9,
+        stopNames: ['Shin-Ōkubo', 'Takadanobaba', 'Mejiro', 'Ikebukuro', 'Ōtsuka', 'Sugamo', 'Komagome', 'Tabata', 'Nishi-Nippori'],
+        to: S.nishiNipporiJR,
+      },
+      {
+        ...CHIYODA,
+        from: S.nishiNipporiC,
+        direction: 'Kita-Senju / Ayase',
+        directionJa: '北千住・綾瀬',
+        stops: 2,
+        stopNames: ['Machiya', 'Kita-Senju'],
+        to: S.kitaSenjuC,
+        boardingTip: 'JR to Tokyo Metro: you pass through a transfer gate. Tap your phone again.',
+      },
+      {
+        ...TOBU,
+        from: S.kitaSenjuTobu,
+        direction: 'Asakusa',
+        directionJa: '浅草',
+        stops: 2,
+        stopNames: ['Ushida', 'Horikiri'],
+        to: S.horikiri,
+        boardingTip: 'Pass the orange Tobu transfer gate. Only trains that stop at 堀切 (Horikiri) work: check the platform screen. Trains for 押上 / 半蔵門線 (Oshiage / Hanzōmon Line) do not stop there.',
+      },
+    ],
+    exitTip: 'You are home. Tap out at the gate.',
+    alternatives: ['If you miss a connection late at night, a taxi from Kita-Senju to Horikiri is short. Show the driver 堀切駅.'],
   },
   // Common skips and optional destinations.
   {

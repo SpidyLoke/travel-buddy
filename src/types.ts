@@ -99,6 +99,15 @@ export interface ItineraryState {
   stops: ItineraryStop[]
   /** Unix ms when the user last marked a stop done (used as "departed from" time). */
   lastDepartedAt?: number
+  /** Where the day ends up. A known place gets step-by-step routes; a free-text address gets live directions only. */
+  home?: HomeSetting
+}
+
+export interface HomeSetting {
+  name: string
+  /** Google Maps search text. */
+  query: string
+  placeId?: string
 }
 
 export type ThemePref = 'system' | 'light' | 'dark'

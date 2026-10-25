@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { BottomNav, type Tab } from './components/BottomNav'
 import { Dashboard } from './components/Dashboard'
 import { ItineraryView } from './components/ItineraryView'
+import { HomeSheet } from './components/HomeTrip'
 import { JourneySheet } from './components/JourneySheet'
 import { MapView } from './components/MapView'
 import { TrainGuide } from './components/TrainGuide'
@@ -11,6 +12,7 @@ import { useNow } from './hooks/useNow'
 import { useOnline } from './hooks/useOnline'
 import { PhotosProvider } from './hooks/usePhotos'
 import { useTheme } from './hooks/useTheme'
+import { homeTrip } from './lib/home'
 import { adviseSchedule, buildTimeline } from './lib/schedule'
 import { nowMinJst } from './lib/time'
 import type { Place } from './types'
@@ -28,6 +30,8 @@ export default function App() {
   const nowMin = nowMinJst(now)
   const timeline = useMemo(() => buildTimeline(itin.state, nowMin), [itin.state, nowMin])
   const advice = useMemo(() => adviseSchedule(itin.state, timeline), [itin.state, timeline])
+  const trip = useMemo(() => homeTrip(itin.state, timeline, nowMin), [itin.state, timeline, nowMin])
+  const [homeOpen, setHomeOpen] = useState(false)
 
   // Nothing left to navigate to: stop GPS to save battery.
   const dayDone = timeline.nextIndex === -1
@@ -58,11 +62,22 @@ export default function App() {
           theme={theme}
           openJourney={() => timeline.nextIndex >= 0 && setJourneyStopId(timeline.entries[timeline.nextIndex].stop.id)}
           showOnMap={showOnMap}
+          trip={trip}
+          openHome={() => setHomeOpen(true)}
         />
       )}
       <MapView visible={tab === 'map'} geo={geo} state={itin.state} timeline={timeline} focus={focus} online={online} />
       {tab === 'itinerary' && (
-        <ItineraryView itin={itin} timeline={timeline} advice={advice} gps={gps} openJourney={setJourneyStopId} showOnMap={showOnMap} />
+        <ItineraryView
+          itin={itin}
+          timeline={timeline}
+          advice={advice}
+          gps={gps}
+          openJourney={setJourneyStopId}
+          showOnMap={showOnMap}
+          trip={trip}
+          openHome={() => setHomeOpen(true)}
+        />
       )}
       {tab === 'guide' && <TrainGuide />}
 
@@ -74,6 +89,7 @@ export default function App() {
         }}
       />
 
+      {homeOpen && <HomeSheet trip={trip} gps={gps} onClose={() => setHomeOpen(false)} />}
       {journey && (
         <JourneySheet
           from={journey.prev}

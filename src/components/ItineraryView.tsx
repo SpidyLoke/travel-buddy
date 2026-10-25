@@ -3,12 +3,14 @@ import { useState } from 'react'
 import { DEFAULT_ITINERARY } from '../data/itinerary'
 import { getPlace, PLACES, placeLabel } from '../data/places'
 import type { ItineraryApi } from '../hooks/useItinerary'
+import type { HomeTrip } from '../lib/home'
 import { directionsUrl, modeToGoogle } from '../lib/maps'
 import { costFor, recommend } from '../lib/pricing'
 import type { Advice, Timeline } from '../lib/schedule'
 import { fmtDuration, fmtMin, parseHm } from '../lib/time'
 import type { ItineraryStop, LatLng, Place, TransportMode } from '../types'
 import { MODE_META } from './Journey'
+import { HomeCard } from './HomeTrip'
 import { PlaceCard } from './PlaceCard'
 import { PlacePhoto } from './PlacePhoto'
 import { ShopChips } from './Donki'
@@ -21,9 +23,11 @@ interface Props {
   gps: LatLng | null
   openJourney: (stopId: string) => void
   showOnMap: (p: Place) => void
+  trip: HomeTrip
+  openHome: () => void
 }
 
-export function ItineraryView({ itin, timeline, advice, gps, openJourney, showOnMap }: Props) {
+export function ItineraryView({ itin, timeline, advice, gps, openJourney, showOnMap, trip, openHome }: Props) {
   const [tab, setTab] = useState<'day' | 'places'>('day')
   return (
     <div className="pt-safe bottom-nav-space px-4">
@@ -36,7 +40,7 @@ export function ItineraryView({ itin, timeline, advice, gps, openJourney, showOn
         ))}
       </div>
       {tab === 'day' ? (
-        <DayList itin={itin} timeline={timeline} advice={advice} gps={gps} openJourney={openJourney} showOnMap={showOnMap} />
+        <DayList itin={itin} timeline={timeline} advice={advice} gps={gps} openJourney={openJourney} showOnMap={showOnMap} trip={trip} openHome={openHome} />
       ) : (
         <PlacesGuide itin={itin} gps={gps} showOnMap={showOnMap} />
       )}
@@ -44,7 +48,7 @@ export function ItineraryView({ itin, timeline, advice, gps, openJourney, showOn
   )
 }
 
-function DayList({ itin, timeline, advice, gps, openJourney, showOnMap }: Props) {
+function DayList({ itin, timeline, advice, gps, openJourney, showOnMap, trip, openHome }: Props) {
   const { state } = itin
   const [startText, setStartText] = useState(fmtMin(state.startMin))
   const [endText, setEndText] = useState(fmtMin(state.endMin))
@@ -134,6 +138,8 @@ function DayList({ itin, timeline, advice, gps, openJourney, showOnMap }: Props)
           />
         ))}
       </ol>
+
+      <HomeCard trip={trip} itin={itin} gps={gps} openHome={openHome} />
 
       <div className="flex justify-between items-center pt-1 px-1">
         <span className="text-[13px] text-muted">

@@ -1,4 +1,6 @@
-import type { ItineraryState, ItineraryStop, TransportMode } from '../types'
+import type { HomeSetting, ItineraryState, ItineraryStop, TransportMode } from '../types'
+
+export const DEFAULT_HOME: HomeSetting = { name: 'Horikiri Station', query: 'Horikiri Station, Adachi, Tokyo', placeId: 'horikiri' }
 
 const stop = (placeId: string, durationMin: number, transport: TransportMode): ItineraryStop => ({
   id: placeId,
@@ -14,6 +16,7 @@ export const DEFAULT_ITINERARY: ItineraryState = {
   startPlaceId: 'horikiri',
   startMin: 11 * 60,
   endMin: 22 * 60 + 30,
+  home: DEFAULT_HOME,
   stops: [
     stop('skytree', 20, 'train'),
     stop('sensoji', 75, 'luup'),
