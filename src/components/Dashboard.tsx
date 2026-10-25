@@ -16,6 +16,7 @@ import { dateLabel, fmtDuration, fmtMin, jstClock, jstDateLabel, planDayStatus }
 import type { LatLng, Place } from '../types'
 import { buildTrainSteps, LineSummary, MODE_META } from './Journey'
 import { DonkiCard } from './Donki'
+import { PlacePhoto } from './PlacePhoto'
 import { LocationHelp } from './LocationHelp'
 import { Button, Card, LinkButton, Notice, Pill } from './ui'
 
@@ -175,6 +176,7 @@ export function Dashboard({ now, geo, itin, timeline, advice, online, openSettin
         <>
           {/* WHERE AM I GOING */}
           <Card className="p-4">
+            <PlacePhoto place={cur.place} aspect="aspect-[2/1]" className="mb-3" />
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <Label>{arrived ? 'You have arrived' : 'Where am I going?'}</Label>

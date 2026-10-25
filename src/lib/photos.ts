@@ -1,3 +1,5 @@
+import type { Place } from '../types'
+import { distanceKm } from './geo'
 import { load, save } from './storage'
 
 // Lead images of English Wikipedia articles. `pilicense=free` restricts these
@@ -14,19 +16,28 @@ export interface Photo {
   page: string
 }
 
-interface Cache {
+interface Entry {
   at: number
-  photos: Record<string, Photo | null>
+  photo: Photo | null
 }
 
-const KEY = 'tokyo-day:photos:v1'
+const KEY = 'tokyo-day:photos:v2'
 const TTL = 7 * 24 * 60 * 60 * 1000
 const WIKI = 'https://en.wikipedia.org/w/api.php'
 const COMMONS = 'https://commons.wikimedia.org/w/api.php'
 
-export function cachedPhotos(): Record<string, Photo | null> | null {
-  const c = load<Cache | null>(KEY, null)
-  return c && Date.now() - c.at < TTL ? c.photos : null
+/** Saved photos by place id, dropping stale entries. */
+export function loadPhotoCache(): Record<string, Photo | null> {
+  const all = load<Record<string, Entry>>(KEY, {})
+  const now = Date.now()
+  return Object.fromEntries(Object.entries(all).filter(([, e]) => now - e.at < TTL).map(([id, e]) => [id, e.photo]))
+}
+
+function savePhotoCache(found: Record<string, Photo | null>) {
+  const all = load<Record<string, Entry>>(KEY, {})
+  const at = Date.now()
+  for (const [id, photo] of Object.entries(found)) all[id] = { at, photo }
+  save(KEY, all)
 }
 
 const api = (base: string, params: Record<string, string>) =>
@@ -42,14 +53,11 @@ function resolver(query: { normalized?: { from: string; to: string }[]; redirect
   }
 }
 
+/** File titles come back with spaces; page images are named with underscores. */
+const spaced = (t: string) => t.replace(/_/g, ' ')
+
 const plainText = (html: string) => new DOMParser().parseFromString(html, 'text/html').body.textContent?.trim() ?? ''
 
-/** Destination photos, cached for a week. */
-export async function fetchPhotos(titles: string[], signal?: AbortSignal): Promise<Record<string, Photo | null>> {
-  const out = await fetchPhotoInfo(titles, signal)
-  save<Cache>(KEY, { at: Date.now(), photos: out })
-  return out
-}
 
 /** Lead photo and credit for each article title. Not cached. */
 export async function fetchPhotoInfo(titles: string[], signal?: AbortSignal): Promise<Record<string, Photo | null>> {
@@ -81,7 +89,7 @@ export async function fetchPhotoInfo(titles: string[], signal?: AbortSignal): Pr
     for (const p of commons.pages ?? []) {
       const ii = p.imageinfo?.[0]
       if (!ii?.thumburl) continue
-      byTitle.set(p.title, {
+      byTitle.set(spaced(p.title), {
         url: ii.thumburl,
         width: ii.thumbwidth,
         height: ii.thumbheight,
@@ -91,7 +99,7 @@ export async function fetchPhotoInfo(titles: string[], signal?: AbortSignal): Pr
       })
     }
     for (const f of files) {
-      const photo = byTitle.get(toFile(f))
+      const photo = byTitle.get(spaced(toFile(f)))
       if (photo) infoByFile.set(f, photo)
     }
   }
@@ -101,5 +109,55 @@ export async function fetchPhotoInfo(titles: string[], signal?: AbortSignal): Pr
     const file = fileByPage.get(toFinal(t))
     out[t] = (file && infoByFile.get(file)) || null
   }
+  return out
+}
+
+/** Best-effort article title for a place with no (or a photo-less) wiki title: name search, sanity-checked by distance. */
+async function searchArticle(place: Place, signal?: AbortSignal): Promise<string | null> {
+  const res = await fetch(
+    api(WIKI, { generator: 'search', gsrsearch: `${place.name} Tokyo`, gsrlimit: '3', prop: 'pageimages|coordinates', piprop: 'name', pilicense: 'free' }),
+    { signal },
+  )
+  if (!res.ok) return null
+  const pages: { title: string; index: number; pageimage?: string; coordinates?: { lat: number; lon: number }[] }[] = (await res.json()).query?.pages ?? []
+  const hit = pages
+    .sort((a, b) => a.index - b.index)
+    .find((p) => {
+      const c = p.coordinates?.[0]
+      // Only accept an article about something near this place.
+      return p.pageimage && c && distanceKm(place, { lat: c.lat, lng: c.lon }) < 1.5
+    })
+  return hit?.title ?? null
+}
+
+/**
+ * Photos for places, by place id. Uses each place's wiki title, falls back to
+ * a name search near the place, credits from Commons. Saved for a week.
+ */
+export async function resolvePhotos(places: Place[], signal?: AbortSignal): Promise<Record<string, Photo | null>> {
+  const byTitle = await fetchPhotoInfo(places.flatMap((p) => (p.wiki ? [p.wiki] : [])), signal)
+  const out: Record<string, Photo | null> = {}
+  const missing: Place[] = []
+  for (const p of places) {
+    const photo = p.wiki ? byTitle[p.wiki] : null
+    if (photo) out[p.id] = photo
+    else missing.push(p)
+  }
+  // Fallback searches, a few at a time.
+  const titles = new Map<string, string>()
+  for (let i = 0; i < missing.length; i += 4) {
+    await Promise.all(
+      missing.slice(i, i + 4).map(async (p) => {
+        const t = await searchArticle(p, signal).catch(() => null)
+        if (t) titles.set(p.id, t)
+      }),
+    )
+  }
+  const fallback = titles.size ? await fetchPhotoInfo([...titles.values()], signal) : {}
+  for (const p of missing) {
+    const t = titles.get(p.id)
+    out[p.id] = (t && fallback[t]) || null
+  }
+  savePhotoCache(out)
   return out
 }

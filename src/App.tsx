@@ -20,6 +20,7 @@ import { useTheme } from './hooks/useTheme'
 import { existingHome, homeTrip, homeTripFromHere } from './lib/home'
 import { adviseSchedule, buildTimeline } from './lib/schedule'
 import { nowMinJst } from './lib/time'
+import { PLACES } from './data/places'
 import type { Place } from './types'
 
 export default function App() {
@@ -54,6 +55,12 @@ export default function App() {
   const journey = journeyStopId ? timeline.entries.find((e) => e.stop.id === journeyStopId) : undefined
   const gps = geo.status === 'active' && !geo.outsideTokyo ? geo.position : null
 
+  // Built-in destinations plus anything added from Nearby/search.
+  const photoPlaces = useMemo(
+    () => [...PLACES, ...(itin.state.customPlaces ?? [])].filter((p) => !p.hidden),
+    [itin.state.customPlaces],
+  )
+
   const planNew = () => {
     setSettingsOpen(false)
     setWizard('new')
@@ -65,7 +72,7 @@ export default function App() {
   }
 
   return (
-    <PhotosProvider online={online}>
+    <PhotosProvider online={online} places={photoPlaces}>
     <div className="min-h-full bg-app">
       {tab === 'home' && (
         <Dashboard

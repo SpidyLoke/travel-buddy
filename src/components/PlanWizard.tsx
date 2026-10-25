@@ -7,6 +7,7 @@ import { INTEREST_LABEL, INTERESTS, withPrefs, type Prefs } from '../lib/prefs'
 import { dateLabel, fmtDuration, fmtMin, nowMinJst, parseHm, todayJst } from '../lib/time'
 import type { Interest, ItineraryState, LuupPlan, Pace, Place } from '../types'
 import { MODE_META } from './Journey'
+import { PlacePhoto } from './PlacePhoto'
 import { PlaceSearch } from './PlaceSearch'
 import { Button, Card, Notice } from './ui'
 
@@ -263,6 +264,7 @@ export function PlanWizard({ geo, firstRun, initialHome, prefs, visited, onDone,
                         </div>
                         {s.place.name !== placeLabel(s.place) && <div className="text-[13px] text-muted">{s.place.name}</div>}
                         <div className="mt-1 text-[13px] text-accent">{s.note}</div>
+                        <PlacePhoto place={s.place} aspect="aspect-[21/9]" className="mt-2" />
                       </div>
                     </Card>
                   </li>

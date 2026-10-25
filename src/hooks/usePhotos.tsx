@@ -1,27 +1,39 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
-import { PLACES } from '../data/places'
-import { cachedPhotos, fetchPhotos, type Photo } from '../lib/photos'
+import { loadPhotoCache, resolvePhotos, type Photo } from '../lib/photos'
+import type { Place } from '../types'
 
 const PhotosContext = createContext<Record<string, Photo | null>>({})
 
-/** Loads all destination photos in two requests, cached for a week. */
-export function PhotosProvider({ online, children }: { online: boolean; children: ReactNode }) {
-  const [photos, setPhotos] = useState(() => cachedPhotos() ?? {})
+/**
+ * Loads photos for the given places, only fetching ones not already saved
+ * (so new destinations and places added from Nearby get photos too).
+ */
+export function PhotosProvider({ online, places, children }: { online: boolean; places: Place[]; children: ReactNode }) {
+  const [photos, setPhotos] = useState(loadPhotoCache)
+  const missingKey = places
+    .filter((p) => !(p.id in photos))
+    .map((p) => p.id)
+    .join(',')
+
   useEffect(() => {
-    if (!online || cachedPhotos()) return
+    if (!online || !missingKey) return
+    const ids = new Set(missingKey.split(','))
     const ctrl = new AbortController()
-    const titles = PLACES.flatMap((p) => (p.wiki ? [p.wiki] : []))
-    fetchPhotos(titles, ctrl.signal)
-      .then(setPhotos)
+    resolvePhotos(
+      places.filter((p) => ids.has(p.id)),
+      ctrl.signal,
+    )
+      .then((found) => setPhotos((prev) => ({ ...prev, ...found })))
       .catch(() => {
         // Photos are optional; cards render without them.
       })
     return () => ctrl.abort()
-  }, [online])
+    // `places` is tracked through missingKey.
+  }, [online, missingKey])
+
   return <PhotosContext.Provider value={photos}>{children}</PhotosContext.Provider>
 }
 
-export function usePhoto(wiki?: string): Photo | null {
-  const photos = useContext(PhotosContext)
-  return wiki ? (photos[wiki] ?? null) : null
+export function usePhoto(place: Place): Photo | null {
+  return useContext(PhotosContext)[place.id] ?? null
 }

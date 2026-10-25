@@ -192,6 +192,7 @@ function StopCard({ stop, index, count, itin, timeline, gps, openJourney, showOn
     <li>
       <Card className={`overflow-hidden ${isNext ? 'ring-2 ring-accent' : ''}`}>
         <div className="p-4">
+          {stop.status === 'pending' && <PlacePhoto place={place} aspect="aspect-[21/9]" className="mb-3" />}
           <div className="flex items-start gap-3">
             <div className={`pin ${stop.status === 'done' ? 'done' : stop.status === 'skipped' ? 'skipped' : isNext ? 'next' : 'upcoming'} !size-9 shrink-0 !text-[13px]`}>
               {stop.status === 'done' ? '✓' : stop.status === 'skipped' ? '–' : index + 1}
@@ -262,7 +263,7 @@ function StopCard({ stop, index, count, itin, timeline, gps, openJourney, showOn
 
         {open && (
           <div className="border-t border-line p-4 space-y-3 bg-card">
-            <PlacePhoto place={place} />
+            {stop.status !== 'pending' && <PlacePhoto place={place} />}
             <p className="text-[15px] leading-snug">{place.description}</p>
             {place.hours && <p className="text-[13px] text-muted">Typical hours: {place.hours} Check before going.</p>}
             <div>
