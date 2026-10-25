@@ -1,0 +1,269 @@
+import type { Leg, Station } from '../types'
+
+// Hand-written route guidance for the default itinerary (and common skips).
+// Lines, directions and stop sequences are fixed network facts. Times are
+// planning estimates only; platforms, departures and fares are never stated
+// here. "Open live train directions" hands off to Google Maps for those.
+
+const S = {
+  horikiri: { name: 'Horikiri', nameJa: '堀切', lat: 35.7433, lng: 139.8176 },
+  skytreeTobu: { name: 'Tokyo Skytree', nameJa: 'とうきょうスカイツリー', code: 'TS02', lat: 35.71, lng: 139.8091 },
+  asakusaTobu: { name: 'Asakusa', nameJa: '浅草', code: 'TS01', lat: 35.7116, lng: 139.798 },
+  asakusaGinza: { name: 'Asakusa', nameJa: '浅草', code: 'G19', lat: 35.7107, lng: 139.7975 },
+  suehirocho: { name: 'Suehirochō', nameJa: '末広町', code: 'G14', lat: 35.7027, lng: 139.7718 },
+  ginzaG: { name: 'Ginza', nameJa: '銀座', code: 'G09', lat: 35.6717, lng: 139.764 },
+  ginzaH: { name: 'Ginza', nameJa: '銀座', lat: 35.6714, lng: 139.7637 },
+  omotesando: { name: 'Omote-sandō', nameJa: '表参道', code: 'G02', lat: 35.6654, lng: 139.7124 },
+  kamiyacho: { name: 'Kamiyachō', nameJa: '神谷町', lat: 35.663, lng: 139.745 },
+  kasumigasekiH: { name: 'Kasumigaseki', nameJa: '霞ケ関', lat: 35.6737, lng: 139.7508 },
+  kasumigasekiC: { name: 'Kasumigaseki', nameJa: '霞ケ関', code: 'C08', lat: 35.6737, lng: 139.7508 },
+  meijijingumae: { name: 'Meiji-jingūmae (Harajuku)', nameJa: '明治神宮前〈原宿〉', code: 'C03', lat: 35.6686, lng: 139.7053 },
+  harajuku: { name: 'Harajuku', nameJa: '原宿', code: 'JY19', lat: 35.6702, lng: 139.7027 },
+  shibuya: { name: 'Shibuya', nameJa: '渋谷', code: 'JY20', lat: 35.658, lng: 139.7016 },
+  shinjuku: { name: 'Shinjuku', nameJa: '新宿', code: 'JY17', lat: 35.6896, lng: 139.7006 },
+} satisfies Record<string, Station>
+
+const TOBU = { operator: 'Tobu Railway', line: 'Tobu Skytree Line', lineJa: '東武スカイツリーライン', colour: '#1f5fa8', lineCode: 'TS' }
+const GINZA = { operator: 'Tokyo Metro', line: 'Ginza Line', lineJa: '銀座線', colour: '#f39700', lineCode: 'G' }
+const HIBIYA = { operator: 'Tokyo Metro', line: 'Hibiya Line', lineJa: '日比谷線', colour: '#9caeb7', lineCode: 'H' }
+const CHIYODA = { operator: 'Tokyo Metro', line: 'Chiyoda Line', lineJa: '千代田線', colour: '#00bb85', lineCode: 'C' }
+const YAMANOTE = { operator: 'JR East', line: 'Yamanote Line', lineJa: '山手線', colour: '#9acd32', lineCode: 'JY' }
+
+export const LEGS: Leg[] = [
+  {
+    from: 'horikiri',
+    to: 'skytree',
+    estimateMin: { train: 15 },
+    distanceKm: 4.5,
+    recommended: 'train',
+    walkToStation: 'You start at Horikiri Station. Use the ticket gate for the Tobu Skytree Line.',
+    segments: [
+      {
+        ...TOBU,
+        from: S.horikiri,
+        direction: 'Asakusa',
+        directionJa: '浅草',
+        stops: 4,
+        stopNames: ['Kanegafuchi', 'Higashi-Mukōjima', 'Hikifune', 'Tokyo Skytree'],
+        to: S.skytreeTobu,
+        boardingTip: 'Only local trains (各停) stop at Horikiri, so any train that stops here heading toward Asakusa works.',
+      },
+    ],
+    exitTip: 'Follow signs for 東京スカイツリー (Tokyo Skytree) and 展望台 (observation deck). The tower is directly above the station.',
+    alternatives: [
+      'If the train screen shows 押上 (Oshiage) or 半蔵門線 (Hanzōmon Line), that also works: get off at Oshiage, which is also directly under Skytree.',
+    ],
+  },
+  {
+    from: 'horikiri',
+    to: 'sensoji',
+    estimateMin: { train: 20 },
+    distanceKm: 5.5,
+    recommended: 'train',
+    walkToStation: 'You start at Horikiri Station. Use the ticket gate for the Tobu Skytree Line.',
+    segments: [
+      {
+        ...TOBU,
+        from: S.horikiri,
+        direction: 'Asakusa',
+        directionJa: '浅草',
+        stops: 5,
+        stopNames: ['Kanegafuchi', 'Higashi-Mukōjima', 'Hikifune', 'Tokyo Skytree', 'Asakusa'],
+        to: S.asakusaTobu,
+        boardingTip: 'Check the train screen shows 浅草 (Asakusa). Trains for 押上 (Oshiage) do not go to Asakusa.',
+      },
+    ],
+    exitTip: 'Exit toward 雷門 (Kaminarimon). The big red gate is about 3 minutes\' walk west.',
+  },
+  {
+    from: 'skytree',
+    to: 'sensoji',
+    estimateMin: { train: 10 },
+    distanceKm: 1.6,
+    recommended: 'train',
+    walkToStation: 'Go back down to Tokyo Skytree Station (Tobu Skytree Line).',
+    segments: [
+      {
+        ...TOBU,
+        from: S.skytreeTobu,
+        direction: 'Asakusa',
+        directionJa: '浅草',
+        stops: 1,
+        stopNames: ['Asakusa'],
+        to: S.asakusaTobu,
+        boardingTip: 'Asakusa is the next and final stop.',
+      },
+    ],
+    exitTip: 'Exit toward 雷門 (Kaminarimon). The big red gate is about 3 minutes\' walk west.',
+    walkNote: 'About 20 minutes across Azuma-bashi bridge over the Sumida River. Good Skytree views behind you.',
+    luupNote: 'Short, flat ride across Azuma-bashi bridge. Check the LUUP app for a port near Skytree Town and one near Asakusa. Nakamise and the temple grounds are no-ride zones, so park before you reach them.',
+  },
+  {
+    from: 'sensoji',
+    to: 'akihabara',
+    estimateMin: { train: 15 },
+    distanceKm: 3.5,
+    recommended: 'train',
+    walkToStation: 'Walk to Tokyo Metro Asakusa Station (Ginza Line, orange "G" signs). Entrances are by Kaminarimon and Azuma-bashi.',
+    segments: [
+      {
+        ...GINZA,
+        from: S.asakusaGinza,
+        direction: 'Shibuya',
+        directionJa: '渋谷',
+        stops: 5,
+        stopNames: ['Tawaramachi', 'Inarichō', 'Ueno', 'Ueno-hirokōji', 'Suehirochō'],
+        to: S.suehirocho,
+        boardingTip: 'Asakusa is the end of the line. Every train leaves toward Shibuya.',
+      },
+    ],
+    exitTip: 'Follow signs for Akihabara / 秋葉原. Walk about 5 minutes south along Chūō-dōri into Electric Town.',
+    alternatives: [
+      'Faster option: the Tsukuba Express from its own Asakusa station on Kokusai-dōri (about 8 minutes\' walk west of Senso-ji) runs to Akihabara in 2 stops.',
+    ],
+  },
+  {
+    from: 'akihabara',
+    to: 'ginza',
+    estimateMin: { train: 15 },
+    distanceKm: 3.5,
+    recommended: 'train',
+    walkToStation: 'Walk north up Chūō-dōri to Suehirochō Station (Ginza Line, orange "G" signs).',
+    segments: [
+      {
+        ...GINZA,
+        from: S.suehirocho,
+        direction: 'Shibuya',
+        directionJa: '渋谷',
+        stops: 5,
+        stopNames: ['Kanda', 'Mitsukoshimae', 'Nihombashi', 'Kyōbashi', 'Ginza'],
+        to: S.ginzaG,
+      },
+    ],
+    exitTip: 'Follow signs for 銀座四丁目交差点 (Ginza 4-chome crossing), Wako or Mitsukoshi.',
+    alternatives: [
+      'From JR Akihabara: JR Yamanote Line toward 東京・品川 (Tokyo / Shinagawa), 3 stops to Yūrakuchō, then walk 5 minutes east.',
+    ],
+  },
+  {
+    from: 'ginza',
+    to: 'tokyotower',
+    estimateMin: { train: 15 },
+    distanceKm: 3,
+    recommended: 'train',
+    walkToStation: 'At Ginza Station, follow the grey "H" Hibiya Line signs.',
+    segments: [
+      {
+        ...HIBIYA,
+        from: S.ginzaH,
+        direction: 'Naka-Meguro',
+        directionJa: '中目黒',
+        stops: 4,
+        stopNames: ['Hibiya', 'Kasumigaseki', 'Toranomon Hills', 'Kamiyachō'],
+        to: S.kamiyacho,
+      },
+    ],
+    exitTip: 'Follow exit signs for 東京タワー (Tokyo Tower). About 7–10 minutes\' walk, slightly uphill.',
+  },
+  {
+    from: 'ginza',
+    to: 'takeshita',
+    estimateMin: { train: 25 },
+    distanceKm: 6,
+    recommended: 'train',
+    walkToStation: 'Use the Ginza Line platforms at Ginza Station (orange "G" signs).',
+    segments: [
+      {
+        ...GINZA,
+        from: S.ginzaG,
+        direction: 'Shibuya',
+        directionJa: '渋谷',
+        stops: 7,
+        stopNames: ['Shimbashi', 'Toranomon', 'Tameike-sannō', 'Akasaka-mitsuke', 'Aoyama-itchōme', 'Gaiemmae', 'Omote-sandō'],
+        to: S.omotesando,
+      },
+    ],
+    exitTip: 'Exit toward 表参道 (Omotesando avenue). Walk 10–12 minutes downhill past the flagship stores, turn right at Meiji-dōri, and Takeshita Street is on your left.',
+  },
+  {
+    from: 'tokyotower',
+    to: 'takeshita',
+    estimateMin: { train: 45 },
+    distanceKm: 6,
+    recommended: 'train',
+    walkToStation: 'Walk back to Kamiyachō Station (Hibiya Line), about 8 minutes.',
+    segments: [
+      {
+        ...HIBIYA,
+        from: S.kamiyacho,
+        direction: 'Kita-Senju',
+        directionJa: '北千住',
+        stops: 2,
+        stopNames: ['Toranomon Hills', 'Kasumigaseki'],
+        to: S.kasumigasekiH,
+      },
+      {
+        ...CHIYODA,
+        from: S.kasumigasekiC,
+        direction: 'Yoyogi-Uehara',
+        directionJa: '代々木上原',
+        stops: 5,
+        stopNames: ['Kokkai-gijidōmae', 'Akasaka', 'Nogizaka', 'Omote-sandō', 'Meiji-jingūmae'],
+        to: S.meijijingumae,
+        boardingTip: 'Trains continuing onto the Odakyu Line (小田急線) also stop at Meiji-jingūmae. Fine to board.',
+      },
+    ],
+    exitTip: 'Follow signs for 竹下通り (Takeshita-dōri) or JR Harajuku. Takeshita Street\'s east end is on Meiji-dōri, about 2 minutes away.',
+  },
+  {
+    from: 'takeshita',
+    to: 'shibuya',
+    estimateMin: { train: 10, walk: 20 },
+    distanceKm: 1.6,
+    recommended: 'walk',
+    walkToStation: 'Walk to JR Harajuku Station, opposite the top of Takeshita Street.',
+    segments: [
+      {
+        ...YAMANOTE,
+        from: S.harajuku,
+        direction: 'Shibuya / Shinagawa',
+        directionJa: '渋谷・品川',
+        stops: 1,
+        stopNames: ['Shibuya'],
+        to: S.shibuya,
+      },
+    ],
+    exitTip: 'Take the Hachikō Exit (ハチ公口) for the Scramble Crossing and Hachikō statue.',
+    walkNote: 'Walk down Takeshita Street to Meiji-dōri, turn right, then left onto Omotesando and right onto Cat Street. Cat Street takes you almost to Shibuya. About 20 minutes and the walk is the attraction.',
+    luupNote: 'Takeshita Street is a no-ride zone and Cat Street is narrow and crowded. Ride on Meiji-dōri instead and end at a port near Shibuya shown in the app.',
+  },
+  {
+    from: 'shibuya',
+    to: 'shinjuku',
+    estimateMin: { train: 15 },
+    distanceKm: 3.5,
+    recommended: 'train',
+    walkToStation: 'Enter JR Shibuya Station by the Hachikō Exit, next to the statue.',
+    segments: [
+      {
+        ...YAMANOTE,
+        from: S.shibuya,
+        direction: 'Shinjuku / Ikebukuro',
+        directionJa: '新宿・池袋',
+        stops: 3,
+        stopNames: ['Harajuku', 'Yoyogi', 'Shinjuku'],
+        to: S.shinjuku,
+      },
+    ],
+    exitTip: 'Shinjuku is the world\'s busiest station. Follow yellow signs for 東口 (East Exit) for Kabukichō, Omoide Yokochō and the 3D cat billboard.',
+    alternatives: [
+      'The JR Saikyō Line and Shōnan-Shinjuku Line go non-stop to Shinjuku (1 stop). Check the platform sign shows 新宿.',
+    ],
+  },
+]
+
+export function findLeg(from: string, to: string): Leg | undefined {
+  return LEGS.find((l) => l.from === from && l.to === to)
+}
+
+export const ALL_STATIONS: Station[] = Object.values(S)

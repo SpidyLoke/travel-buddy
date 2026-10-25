@@ -1,1 +1,56 @@
-# travel-buddy
+# Tokyo Day: travel companion
+
+Mobile-first web app for a one-day Tokyo route (Horikiri → Skytree → Asakusa → Akihabara → Ginza → Tokyo Tower → Harajuku → Shibuya → Shinjuku) by train, LUUP and on foot. Built for iPhone Safari, installable to the home screen.
+
+Live site: **https://spidyloke.github.io/travel-buddy/**
+
+## What it does
+
+- **Home**: Japan time, GPS position, next stop, which line/direction/stop to use, the next action, and Navigate / train-instruction buttons. Schedule advice ("running 40 min behind, skip Ginza to reach Harajuku before shops close").
+- **Map**: OpenStreetMap + Leaflet, blue-dot location, numbered stops (next / done / upcoming / skipped), stations for upcoming train legs.
+- **Itinerary**: mark visited, skip, restore, reorder, add, remove, change visit length, start time and transport. Destination guide for 16 places with train/walk navigation, map and copy-Japanese-name buttons.
+- **Train Guide**: Suica in Apple Wallet, gates, directions, platforms, transfers, exits, station codes, wrong train, low balance, sign glossary, LUUP rules.
+- Progress and preferences persist in `localStorage`. After the first load, the app shell works offline (PWA); map tiles you've already viewed are cached.
+
+### What it deliberately does not do
+
+No live departures, platforms, fares, disruptions, LUUP scooter or port availability. Those come from Google Maps (official [Maps URLs](https://developers.google.com/maps/documentation/urls/get-started)) and the LUUP app. Travel times are planning estimates; ones calculated from distance are marked with `*`. No API keys, no backend.
+
+## Run locally
+
+```bash
+npm install
+npm run dev        # http://localhost:5173/travel-buddy/
+npm run build      # type-check + production build into dist/
+npm run preview
+```
+
+Geolocation needs HTTPS or `localhost`. To test on an iPhone on the same Wi-Fi, use `npm run dev -- --host` and a tunnel with HTTPS, or just test the deployed site.
+
+## Deploy to GitHub Pages
+
+1. Repo must be **public** (or on a paid plan for private Pages).
+2. GitHub → repo **Settings → Pages → Build and deployment → Source: GitHub Actions**.
+3. Push to `main`. `.github/workflows/deploy.yml` builds and deploys. Watch it under **Actions**.
+4. Site appears at `https://<user>.github.io/<repo>/`.
+
+The base path is set automatically from the repo name in CI (`BASE_PATH=/<repo>/`). For a custom domain or a `<user>.github.io` repo, set `BASE_PATH=/` in the workflow.
+
+## Install on iPhone
+
+Open the site in Safari → Share → **Add to Home Screen**. Allow location when asked. If you denied it: Settings → Privacy & Security → Location Services → Safari Websites → While Using, then in Safari aA → Website Settings → Location → Allow.
+
+## Project layout
+
+```
+src/
+  data/places.ts      destinations, Japanese names, typical hours
+  data/legs.ts        hand-written train routes (line, direction, stops, exits)
+  data/itinerary.ts   default day plan
+  lib/schedule.ts     timeline, delay projection, skip advice
+  lib/maps.ts         Google Maps URL builders, LUUP link
+  hooks/              geolocation, itinerary persistence, theme, clock, online
+  components/         Dashboard, MapView, ItineraryView, JourneySheet, TrainGuide…
+```
+
+Edit `data/legs.ts` to add step-by-step routes for new pairs of stops; any pair without one falls back to live Google Maps directions.
