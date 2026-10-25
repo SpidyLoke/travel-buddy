@@ -10,6 +10,8 @@ import { fmtDuration, fmtMin, parseHm } from '../lib/time'
 import type { ItineraryStop, LatLng, Place, TransportMode } from '../types'
 import { MODE_META } from './Journey'
 import { PlaceCard } from './PlaceCard'
+import { PlacePhoto } from './PlacePhoto'
+import { ShopChips } from './Donki'
 import { Button, Card, LinkButton, Notice, Pill, SectionTitle } from './ui'
 
 interface Props {
@@ -223,6 +225,7 @@ function StopCard({ stop, index, count, itin, timeline, gps, openJourney, showOn
               <Clock size={13} /> Stay {fmtDuration(stop.durationMin)}
             </Pill>
             {place.mandatory && <Pill className="bg-accent/12 text-accent">Must-see</Pill>}
+            <ShopChips stopPlaceId={place.id} />
             {place.closesLabel && <Pill className="bg-warn/15 text-[#a66a00] dark:text-warn">{place.closesLabel}</Pill>}
             <button className="ml-auto text-muted" onClick={() => setOpen((v) => !v)} aria-label="More">
               <ChevronDown size={20} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
@@ -251,6 +254,7 @@ function StopCard({ stop, index, count, itin, timeline, gps, openJourney, showOn
 
         {open && (
           <div className="border-t border-line p-4 space-y-3 bg-card">
+            <PlacePhoto place={place} />
             <p className="text-[15px] leading-snug">{place.description}</p>
             {place.hours && <p className="text-[13px] text-muted">Typical hours: {place.hours} Check before going.</p>}
             <div>

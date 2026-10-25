@@ -15,6 +15,8 @@ export interface Place extends LatLng {
   nameJa: string
   /** Text Google Maps resolves reliably, used for external directions. */
   mapsQuery: string
+  /** English Wikipedia article whose lead image (free licence) is used as the photo. */
+  wiki?: string
   area: string
   description: string
   activities: string[]
@@ -30,6 +32,8 @@ export interface Place extends LatLng {
   /** Places that appear in the destination guide but are not stops by default. */
   guideOnly?: boolean
   notes?: string[]
+  /** Shopping stops such as Don Quijote. */
+  kind?: 'sight' | 'shop'
 }
 
 export interface Station extends LatLng {

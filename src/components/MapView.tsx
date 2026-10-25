@@ -3,7 +3,7 @@ import 'leaflet/dist/leaflet.css'
 import { Crosshair, Layers, Navigation } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { findLeg, findTrainLeg } from '../data/legs'
-import { getPlace, placeLabel } from '../data/places'
+import { getPlace, PLACES, placeLabel } from '../data/places'
 import type { Geo } from '../hooks/useGeolocation'
 import { distanceKm, formatDistance, OFF_ROUTE_KM } from '../lib/geo'
 import { directionsUrl, modeToGoogle } from '../lib/maps'
@@ -92,6 +92,12 @@ export function MapView({ visible, geo, state, timeline, focus, online }: Props)
         .addTo(g)
     })
     L.polyline(pts, { color: '#0a84ff', weight: 3, opacity: 0.55, dashArray: '6 8' }).addTo(g)
+
+    PLACES.filter((p) => p.kind === 'shop' && !state.stops.some((st) => st.placeId === p.id)).forEach((p) =>
+      L.marker([p.lat, p.lng], { icon: L.divIcon({ className: '', html: '<div class="pin shop">🛍</div>', iconSize: [26, 26] }) })
+        .bindPopup(`<b>${p.name}</b><br>${p.nameJa}<br>${p.hours ?? ''}`)
+        .addTo(g),
+    )
 
     if (showStations) {
       timeline.entries

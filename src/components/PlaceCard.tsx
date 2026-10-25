@@ -4,6 +4,7 @@ import { directionsUrl } from '../lib/maps'
 import { fmtDuration } from '../lib/time'
 import type { LatLng, Place } from '../types'
 import { CopyJaButton } from './CopyJaButton'
+import { PlacePhoto } from './PlacePhoto'
 import { Button, Card, LinkButton, Pill } from './ui'
 
 interface Props {
@@ -17,6 +18,7 @@ interface Props {
 export function PlaceCard({ place, gps, inPlan, onAdd, onMap }: Props) {
   return (
     <Card className="p-4 space-y-3">
+      <PlacePhoto place={place} />
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="text-[19px] font-bold leading-tight">{place.name}</div>

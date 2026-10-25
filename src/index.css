@@ -70,6 +70,7 @@ button:disabled { cursor: default; }
 .pin.done { background: #30a46c; }
 .pin.skipped { background: #8e8e93; opacity: .7; }
 .pin.start { background: #e5484d; }
+.pin.shop { width: 26px; height: 26px; background: #ffd900; font-size: 13px; }
 .station-dot { width: 12px; height: 12px; border-radius: 3px; background: #fff; border: 3px solid #333; }
 .leaflet-container { font-family: var(--font-sans); background: var(--card-2); }
 .dark .leaflet-tile-pane { filter: brightness(.75) contrast(1.1) saturate(.8); }

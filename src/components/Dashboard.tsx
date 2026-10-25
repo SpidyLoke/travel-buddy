@@ -11,8 +11,9 @@ import { costFor, recommend } from '../lib/pricing'
 import { load, save } from '../lib/storage'
 import type { Advice, Timeline } from '../lib/schedule'
 import { fmtDuration, fmtMin, jstClock, jstDateLabel } from '../lib/time'
-import type { ThemePref } from '../types'
+import type { Place, ThemePref } from '../types'
 import { buildTrainSteps, LineSummary, MODE_META } from './Journey'
+import { DonkiCard } from './Donki'
 import { LocationHelp } from './LocationHelp'
 import { Button, Card, LinkButton, Notice, Pill } from './ui'
 
@@ -25,12 +26,13 @@ interface Props {
   online: boolean
   theme: { pref: ThemePref; cycle: () => void }
   openJourney: () => void
+  showOnMap: (p: Place) => void
 }
 
 /** Within this radius of the next stop we treat the user as having arrived. */
 const ARRIVED_KM = 0.35
 
-export function Dashboard({ now, geo, itin, timeline, advice, online, theme, openJourney }: Props) {
+export function Dashboard({ now, geo, itin, timeline, advice, online, theme, openJourney, showOnMap }: Props) {
   const cur = timeline.nextIndex >= 0 ? timeline.entries[timeline.nextIndex] : undefined
   const total = timeline.entries.length
   const done = timeline.entries.filter((e) => e.stop.status === 'done').length
@@ -251,6 +253,8 @@ export function Dashboard({ now, geo, itin, timeline, advice, online, theme, ope
           <p className="mt-1 text-muted">Add more from the Itinerary tab, or head back to your hotel.</p>
         </Card>
       )}
+
+      <DonkiCard timeline={timeline} gps={livePos} showOnMap={showOnMap} />
     </div>
   )
 }

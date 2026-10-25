@@ -9,6 +9,7 @@ import { useGeolocation } from './hooks/useGeolocation'
 import { useItinerary } from './hooks/useItinerary'
 import { useNow } from './hooks/useNow'
 import { useOnline } from './hooks/useOnline'
+import { PhotosProvider } from './hooks/usePhotos'
 import { useTheme } from './hooks/useTheme'
 import { adviseSchedule, buildTimeline } from './lib/schedule'
 import { nowMinJst } from './lib/time'
@@ -44,6 +45,7 @@ export default function App() {
   }
 
   return (
+    <PhotosProvider online={online}>
     <div className="min-h-full bg-app">
       {tab === 'home' && (
         <Dashboard
@@ -55,6 +57,7 @@ export default function App() {
           online={online}
           theme={theme}
           openJourney={() => timeline.nextIndex >= 0 && setJourneyStopId(timeline.entries[timeline.nextIndex].stop.id)}
+          showOnMap={showOnMap}
         />
       )}
       <MapView visible={tab === 'map'} geo={geo} state={itin.state} timeline={timeline} focus={focus} online={online} />
@@ -82,5 +85,6 @@ export default function App() {
         />
       )}
     </div>
+    </PhotosProvider>
   )
 }
