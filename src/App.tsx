@@ -27,7 +27,8 @@ import { useReminders } from './hooks/useReminders'
 import { useTheme } from './hooks/useTheme'
 import { existingHome, homePlace, homeTrip, homeTripFromHere } from './lib/home'
 import { adviseSchedule, buildTimeline } from './lib/schedule'
-import { nowMinJst, todayJst } from './lib/time'
+import { fmtMin, nowMinJst, todayJst } from './lib/time'
+import { replanFromNow } from './lib/replan'
 import { refreshWeather } from './lib/weather'
 import { PLACES, placeLabel } from './data/places'
 import { refreshFx } from './lib/fx'
@@ -98,7 +99,24 @@ export default function App() {
   const showWizard = (!prefs.prefs.onboarded || wizard !== null) && !incoming && !invite
 
   const nowMin = nowMinJst(now)
-  const timeline = useMemo(() => buildTimeline(itin.state, nowMin), [itin.state, nowMin])
+  // Where you are (live, or a recent last-known fix), so projections start from reality.
+  const fresh = geo.updatedAt != null && Date.now() - geo.updatedAt < 45 * 60000
+  const here = (geo.status === 'active' || geo.status === 'paused') && fresh && !geo.outsideJapan ? geo.position : null
+  const hereKey = here ? `${here.lat.toFixed(3)},${here.lng.toFixed(3)}` : ''
+  const timeline = useMemo(() => buildTimeline(itin.state, nowMin, here), [itin.state, nowMin, hereKey]) // here via hereKey
+
+  const replan = () => {
+    const r = replanFromNow(itin.state, nowMinJst(), here)
+    if (!r) return
+    const msg = [
+      `New order from ${here ? 'where you are' : 'your last stop'}, leaving now:`,
+      r.keep.length ? r.keep.join(' → ') : '(nothing fits)',
+      r.shortened ? `\nVisits shortened to about ${Math.round(r.shortened * 100)}% to fit everything in.` : '',
+      r.drop.length ? `\nSkipping (won't fit): ${r.drop.join(', ')}` : '',
+      `\nBack home around ${fmtMin(r.homeArrive)}. Skipped stops can be restored.`,
+    ].join('\n')
+    if (confirm(msg)) itin.replace(r.state)
+  }
   const advice = useMemo(() => adviseSchedule(itin.state, timeline), [itin.state, timeline])
   useReminders(timeline, itin.state.date, prefs.prefs.alerts)
   const trip = useMemo(() => homeTrip(itin.state, timeline, nowMin), [itin.state, timeline, nowMin])
@@ -145,6 +163,7 @@ export default function App() {
           online={online}
           openSettings={() => setSettingsOpen(true)}
           openConverter={() => setConverterOpen(true)}
+          onReplan={replan}
           tripPlan={tripPlan}
           openFood={setFoodFor}
           lobbyBar={<LobbyBar lobby={lobby} onOpen={() => setLobbyOpen(true)} />}
@@ -173,6 +192,7 @@ export default function App() {
           lobbyBar={<LobbyBar lobby={lobby} onOpen={() => setLobbyOpen(true)} />}
           tripPlan={tripPlan}
           openFood={setFoodFor}
+          onReplan={replan}
         />
       )}
       {tab === 'nearby' && <NearbyView geo={geo} timeline={timeline} itin={itin} online={online} showOnMap={showOnMap} />}

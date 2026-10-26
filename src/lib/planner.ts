@@ -1,4 +1,4 @@
-import { PLACES } from '../data/places'
+import { PLACE_BY_ID, PLACES } from '../data/places'
 import { regionOf } from '../data/regions'
 import type { Interest, ItineraryState, ItineraryStop, Pace, Place, Region, TransportMode } from '../types'
 import { distanceKm } from './geo'
@@ -35,6 +35,12 @@ export interface PlanInput {
   region?: Region
   /** Plan this day as a day trip to one area (see data/regions.ts). */
   dayTrip?: string
+  /** Start somewhere other than home (re-planning from where you are). */
+  startFrom?: Place
+  /** Only consider these places (re-planning the rest of a day). */
+  onlyIds?: string[]
+  /** Visit lengths to keep instead of the suggested ones. */
+  durations?: Record<string, number>
 }
 
 export interface PlannedStop {
@@ -125,7 +131,7 @@ function makeSim(input: PlanInput) {
 
   return (route: Place[], musts: Set<string>): Sim => {
     let t = input.startMin
-    let prev = input.home
+    let prev = input.startFrom ?? input.home
     let cost = 0
     let ok = true
     const problems: string[] = []
@@ -134,7 +140,7 @@ function makeSim(input: PlanInput) {
       const arrive = t + tr.min
       const start = Math.max(arrive, p.opensAt ?? 0)
       const wait = start - arrive
-      const durationMin = planDuration(p, input.pace)
+      const durationMin = input.durations?.[p.id] ?? planDuration(p, input.pace)
       const depart = start + durationMin
       if (wait > 45) ok = false
       if (p.closesAt != null && depart > p.closesAt + 10) {
@@ -142,7 +148,7 @@ function makeSim(input: PlanInput) {
         problems.push(`${p.label ?? p.name} may close (${p.closesLabel ?? fmtMin(p.closesAt)}) before you finish.`)
       }
       // On a day trip the ride out and back is a fixed cost, not a reason to drop places.
-      cost += (input.dayTrip && prev === input.home ? 0 : tr.min) + wait + timePenalty(p, start)
+      cost += (input.dayTrip && prev === (input.startFrom ?? input.home) ? 0 : tr.min) + wait + timePenalty(p, start)
       t = depart + buffer
       prev = p
       return {
@@ -174,7 +180,7 @@ export function planDay(input: PlanInput): PlanResult {
   const exclude = new Set(input.excludeIds.filter((id) => !musts.has(id)))
   const warnings: string[] = []
   const sim = makeSim(input)
-  const { max } = PACE[input.pace]
+  const max = input.onlyIds ? input.onlyIds.length : PACE[input.pace].max
   const rand = () => (input.jitter ? (Math.random() - 0.5) * input.jitter : 0)
 
   // Daytime sights on your doorstep you will see anyway; evening spots near
@@ -183,11 +189,12 @@ export function planDay(input: PlanInput): PlanResult {
   const region = input.region ?? regionOf(input.home)
   // City days use the home region's everyday places; day-trip days only that trip's places.
   const inScope = (p: Place) => (input.dayTrip ? p.dayTrip === input.dayTrip : !p.dayTrip && (p.region ?? 'tokyo') === region)
-  const pool = PLACES.filter(
-    (p) => !p.hidden && p.tags?.length && p.kind !== 'shop' && inScope(p) && !exclude.has(p.id) && (musts.has(p.id) || !doorstep(p)),
-  )
+  const pool = input.onlyIds
+    ? input.onlyIds.map((id) => PLACE_BY_ID[id]).filter((p): p is Place => !!p)
+    : PLACES.filter((p) => !p.hidden && p.tags?.length && p.kind !== 'shop' && inScope(p) && !exclude.has(p.id) && (musts.has(p.id) || !doorstep(p)))
   // On a day trip you've already paid the long ride: see as much of the area as fits.
-  const tripBoost = input.dayTrip ? 4 : 0
+  // Re-planning: these are stops you already chose, keep every one that fits.
+  const tripBoost = input.dayTrip ? 4 : input.onlyIds ? 6 : 0
   const value = new Map(pool.map((p) => [p.id, (musts.has(p.id) ? 1000 : scorePlace(p, input.interests, input.offInterestPenalty) + tripBoost) + rand()]))
 
   for (const p of pool) {
@@ -203,7 +210,7 @@ export function planDay(input: PlanInput): PlanResult {
   remaining.sort((a, b) => value.get(b.id)! - value.get(a.id)!)
   for (const p of remaining) {
     const isMust = musts.has(p.id)
-    if (!isMust && (route.length >= max || (p.group && usedGroups.has(p.group)))) continue
+    if (!isMust && (route.length >= max || (!input.onlyIds && p.group && usedGroups.has(p.group)))) continue
     let best: { route: Place[]; sim: Sim; gain: number } | null = null
     for (let i = 0; i <= route.length; i++) {
       const cand = [...route.slice(0, i), p, ...route.slice(i)]
@@ -224,7 +231,7 @@ export function planDay(input: PlanInput): PlanResult {
   while (route.length < MIN_STOPS) {
     let best: { route: Place[]; sim: Sim; gain: number; place: Place } | null = null
     for (const p of remaining) {
-      if (route.includes(p) || (p.group && usedGroups.has(p.group))) continue
+      if (route.includes(p) || (!input.onlyIds && p.group && usedGroups.has(p.group))) continue
       for (let i = 0; i <= route.length; i++) {
         const cand = [...route.slice(0, i), p, ...route.slice(i)]
         const s = sim(cand, musts)

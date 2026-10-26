@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowUp, CalendarPlus, Check, ChevronDown, Clock, ListChecks, MapPin, Minus, Navigation, Plus, Share2, SkipForward, Sparkles, Trash2, Undo2 } from 'lucide-react'
+import { ArrowDown, ArrowUp, CalendarPlus, Check, RefreshCw, ChevronDown, Clock, ListChecks, MapPin, Minus, Navigation, Plus, Share2, SkipForward, Sparkles, Trash2, Undo2 } from 'lucide-react'
 import { Fragment, useState, type ReactNode } from 'react'
 import { getPlace, PLACES, placeLabel } from '../data/places'
 import type { ItineraryApi } from '../hooks/useItinerary'
@@ -13,7 +13,7 @@ import { INTEREST_LABEL, INTERESTS, type Prefs } from '../lib/prefs'
 import { directionsUrl, modeToGoogle } from '../lib/maps'
 import { costFor, recommend } from '../lib/pricing'
 import type { Advice, Timeline } from '../lib/schedule'
-import { dateLabel, fmtDuration, fmtMin, parseHm, todayJst } from '../lib/time'
+import { dateLabel, fmtDuration, fmtMin, parseHm, planDayStatus, todayJst } from '../lib/time'
 import type { Interest, ItineraryStop, LatLng, Place, TransportMode } from '../types'
 import { MODE_META } from './Journey'
 import { HomeCard } from './HomeTrip'
@@ -41,9 +41,10 @@ interface Props {
   lobbyBar: ReactNode
   tripPlan: TripApi
   openFood: (slot: MealSlot) => void
+  onReplan: () => void
 }
 
-export function ItineraryView({ itin, timeline, advice, gps, openJourney, showOnMap, trip, openHome, geo, prefs, planNew, openShare, lobbyBar, tripPlan, openFood }: Props) {
+export function ItineraryView({ itin, timeline, advice, gps, openJourney, showOnMap, trip, openHome, geo, prefs, planNew, openShare, lobbyBar, tripPlan, openFood, onReplan }: Props) {
   const [tab, setTab] = useState<'day' | 'places'>('day')
   return (
     <div className="pt-safe bottom-nav-space px-4">
@@ -92,7 +93,7 @@ export function ItineraryView({ itin, timeline, advice, gps, openJourney, showOn
         ))}
       </div>
       {tab === 'day' ? (
-        <DayList itin={itin} timeline={timeline} advice={advice} gps={gps} openJourney={openJourney} showOnMap={showOnMap} trip={trip} openHome={openHome} geo={geo} openFood={openFood} />
+        <DayList itin={itin} timeline={timeline} advice={advice} gps={gps} openJourney={openJourney} showOnMap={showOnMap} trip={trip} openHome={openHome} geo={geo} openFood={openFood} onReplan={onReplan} />
       ) : (
         <PlacesGuide itin={itin} gps={gps} showOnMap={showOnMap} interests={prefs.interests} />
       )}
@@ -100,7 +101,7 @@ export function ItineraryView({ itin, timeline, advice, gps, openJourney, showOn
   )
 }
 
-function DayList({ itin, timeline, advice, gps, openJourney, showOnMap, trip, openHome, geo, openFood }: Omit<Props, 'prefs' | 'planNew' | 'openShare' | 'lobbyBar' | 'tripPlan'>) {
+function DayList({ itin, timeline, advice, gps, openJourney, showOnMap, trip, openHome, geo, openFood, onReplan }: Omit<Props, 'prefs' | 'planNew' | 'openShare' | 'lobbyBar' | 'tripPlan'>) {
   const { state } = itin
   const meals = mealSlots(timeline)
   const [startText, setStartText] = useState(fmtMin(state.startMin))
@@ -130,6 +131,11 @@ function DayList({ itin, timeline, advice, gps, openJourney, showOnMap, trip, op
         {advice.message}
       </Notice>
 
+      {timeline.started && timeline.nextIndex >= 0 && (planDayStatus(state.date) === 'today' || planDayStatus(state.date) === 'undated') && (
+        <Button className="w-full text-[14px]" onClick={onReplan}>
+          <RefreshCw size={16} /> Re-plan the rest of today from now
+        </Button>
+      )}
       <Card className="p-4 space-y-3">
         <div className="flex items-center gap-3">
           <div className="pin start !size-9 shrink-0">S</div>

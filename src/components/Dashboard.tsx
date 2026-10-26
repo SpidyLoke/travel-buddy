@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { Check, Crosshair, Home, JapaneseYen, Utensils, Settings, Share, Sparkles, X, ListChecks, LocateFixed, Navigation, SkipForward, WifiOff } from 'lucide-react'
+import { Check, Crosshair, Home, JapaneseYen, RefreshCw, Utensils, Settings, Share, Sparkles, X, ListChecks, LocateFixed, Navigation, SkipForward, WifiOff } from 'lucide-react'
 import { findTrainLeg } from '../data/legs'
 import { PLACES, placeLabel } from '../data/places'
 import type { Geo } from '../hooks/useGeolocation'
@@ -34,6 +34,7 @@ interface Props {
   online: boolean
   openSettings: () => void
   openConverter: () => void
+  onReplan: () => void
   lobbyBar: ReactNode
   tripPlan: TripApi
   openFood: (slot: MealSlot) => void
@@ -47,7 +48,7 @@ interface Props {
 /** Within this radius of the next stop we treat the user as having arrived. */
 const ARRIVED_KM = 0.35
 
-export function Dashboard({ now, geo, itin, timeline, advice, online, openSettings, openConverter, lobbyBar, tripPlan, openFood, planNew, openJourney, showOnMap, trip, openHome }: Props) {
+export function Dashboard({ now, geo, itin, timeline, advice, online, openSettings, openConverter, onReplan, lobbyBar, tripPlan, openFood, planNew, openJourney, showOnMap, trip, openHome }: Props) {
   const cur = timeline.nextIndex >= 0 ? timeline.entries[timeline.nextIndex] : undefined
   const total = timeline.entries.length
   const done = timeline.entries.filter((e) => e.stop.status === 'done').length
@@ -75,10 +76,38 @@ export function Dashboard({ now, geo, itin, timeline, advice, online, openSettin
   const prefs = getPrefs()
   // From an hour before a meal until an hour after, on the day itself.
   const nowMin = nowMinJst(now)
-  // Leave-by countdown for the plan as written, only on the day and within 3 hours.
-  const leaveBy = cur && (day === 'today' || day === 'undated') && timeline.started ? (arrived ? cur.plannedDepart : cur.plannedArrive - cur.travel.min) : null
-  const leaveLeft = leaveBy != null ? Math.round(leaveBy - nowMin) : null
-  const showLeave = leaveLeft != null && leaveLeft < 180
+  // What to do about time right now, worked out from the current time and position.
+  const onDay = day === 'today' || day === 'undated'
+  const guidance = ((): { tone: 'plain' | 'warn' | 'bad'; text: string } | null => {
+    if (!cur || !onDay || !timeline.started) return null
+    if (arrived) {
+      const left = Math.round(cur.plannedDepart - nowMin)
+      if (left > 2) return { tone: left <= 10 ? 'warn' : 'plain', text: `About ${fmtDuration(left)} left here: leave by ${fmtMin(cur.plannedDepart)} to stay on plan.` }
+      const next = timeline.entries[timeline.nextIndex + 1]
+      return {
+        tone: 'warn',
+        text: next ? `Past your planned time here. Leave now to reach ${placeLabel(next.place)} around ${fmtMin(nowMin + next.travel.min)}.` : 'Past your planned time here. Head on whenever you are ready.',
+      }
+    }
+    const trip = cur.fromHere ?? cur.travel
+    const idealLeave = cur.plannedArrive - cur.travel.min
+    if (!cur.fromHere && idealLeave - nowMin > 2) {
+      const n = Math.round(idealLeave - nowMin)
+      return { tone: n <= 10 ? 'warn' : 'plain', text: `Leave in ${n} min (by ${fmtMin(idealLeave)}) to arrive around ${fmtMin(cur.plannedArrive)}.` }
+    }
+    const eta = cur.fromHere ? cur.projectedArrive : nowMin + trip.min
+    const how = `${fmtDuration(trip.min)}${trip.source === 'calc' ? '*' : ''}`
+    let text = cur.fromHere || pos ? `Leave now: arrive around ${fmtMin(eta)} (${how}).` : `If you're not there yet, leave now: arrive around ${fmtMin(eta)} (${how}).`
+    let tone: 'warn' | 'bad' = 'warn'
+    const closes = cur.place.closesAt
+    if (closes != null && eta > closes - 30) {
+      const there = Math.max(0, closes - eta)
+      text += there > 0 ? ` ${cur.place.closesLabel ?? `Closes around ${fmtMin(closes)}`}: about ${there} min there.` : ` It will likely be closed (${cur.place.closesLabel ?? fmtMin(closes)}).`
+      tone = 'bad'
+    }
+    return { tone, text }
+  })()
+  const suggestReplan = onDay && timeline.started && (timeline.delayMin > 20 || advice.tone === 'bad')
   const mealSoon = day === 'today' || day === 'undated' ? mealSlots(timeline).find((m) => nowMin >= m.meal.at - 60 && nowMin <= m.meal.at + 60) : undefined
   const rec = cur ? recommend(cur.prev, cur.place) : null
   const cost = cur ? costFor(cur.prev, cur.place, mode) : null
@@ -227,14 +256,15 @@ export function Dashboard({ now, geo, itin, timeline, advice, online, openSettin
                 {distToNext != null && !arrived && <div className="text-[13px] text-muted">{formatDistance(distToNext)} away</div>}
               </div>
             </div>
-            {showLeave && leaveBy != null && (
-              <div className={`mt-2 rounded-xl px-3 py-2 text-[14px] font-semibold ${leaveLeft! < 0 ? 'bg-bad/12 text-bad' : leaveLeft! <= 10 ? 'bg-warn/15 text-[#a66a00] dark:text-warn' : 'bg-card-2'}`}>
-                {leaveLeft! < -5
-                  ? `${-leaveLeft!} min behind plan (leave-by was ${fmtMin(leaveBy)})`
-                  : leaveLeft! <= 2
-                    ? `Leave now${arrived ? '' : ` for ${placeLabel(cur.place)}`}`
-                    : `Leave ${arrived ? `${placeLabel(cur.place)} ` : ''}in ${leaveLeft} min (by ${fmtMin(leaveBy)})`}
+            {guidance && (
+              <div className={`mt-2 rounded-xl px-3 py-2 text-[14px] font-semibold ${guidance.tone === 'bad' ? 'bg-bad/12 text-bad' : guidance.tone === 'warn' ? 'bg-warn/15 text-[#a66a00] dark:text-warn' : 'bg-card-2'}`}>
+                {guidance.text}
               </div>
+            )}
+            {suggestReplan && (
+              <Button className="mt-2 w-full text-[14px]" onClick={onReplan}>
+                <RefreshCw size={16} /> Re-plan the rest of today from {pos ? 'here' : 'now'}
+              </Button>
             )}
             <div className="mt-2 empty:hidden">
               <RainWarning place={cur.place} date={itin.state.date ?? todayJst()} atMin={cur.projectedArrive} />

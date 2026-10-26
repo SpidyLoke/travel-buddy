@@ -1,6 +1,6 @@
 import { findLeg } from '../data/legs'
 import { getPlace, placeLabel } from '../data/places'
-import type { ItineraryState, ItineraryStop, Place, TransportMode } from '../types'
+import type { ItineraryState, ItineraryStop, LatLng, Place, TransportMode } from '../types'
 import { distanceKm } from './geo'
 import { dateLabel, fmtMin, nowMinJst, planDayStatus } from './time'
 
@@ -23,6 +23,11 @@ const TRAIN_OVERHEAD = 12 // walk to platform, wait, walk out
 const TRAIN_MIN_PER_KM = 2.5
 const TRAIN_MIN_PER_KM_LONG = 1.1
 
+/** Your current position as a Place, for travel estimates. */
+export function herePlace(p: LatLng): Place {
+  return { id: 'here', name: 'Your location', nameJa: '現在地', mapsQuery: `${p.lat.toFixed(6)},${p.lng.toFixed(6)}`, lat: p.lat, lng: p.lng, area: '', description: '', activities: [], suggestedMin: 0, nearestStation: '' }
+}
+
 export function estimateTravel(from: Place, to: Place, mode: TransportMode): TravelEstimate {
   const leg = findLeg(from.id, to.id)
   const km = leg?.distanceKm ?? distanceKm(from, to) * ROUTE_FACTOR
@@ -37,6 +42,8 @@ export function estimateTravel(from: Place, to: Place, mode: TransportMode): Tra
 }
 
 export interface TimelineEntry {
+  /** Set on the next stop when you're known to be elsewhere: the trip from where you are now. */
+  fromHere?: TravelEstimate
   stop: ItineraryStop
   place: Place
   prev: Place
@@ -54,12 +61,23 @@ export interface Timeline {
   /** Projected minus planned departure from the current stop. Positive = behind. */
   delayMin: number
   started: boolean
+  /** GPS says you are not at (or near) the next stop yet. */
+  awayFromNext: boolean
   projectedEnd: number
   plannedEnd: number
 }
 
 /** Builds planned and projected times for every non-skipped stop. */
-export function buildTimeline(state: ItineraryState, now = nowMinJst()): Timeline {
+/** Further than this from the next stop, you're taken to still be on your way. */
+export const AWAY_KM = 1
+
+/**
+ * Planned and projected times for every non-skipped stop. Projections run
+ * from the current time: with `here` (your position) and the next stop more
+ * than a kilometre away, you're assumed to leave now, so arrivals are never
+ * shown in the past.
+ */
+export function buildTimeline(state: ItineraryState, now = nowMinJst(), here?: LatLng | null): Timeline {
   const active = state.stops.filter((s) => s.status !== 'skipped')
   const entries: TimelineEntry[] = []
   let prev = getPlace(state.startPlaceId)
@@ -69,6 +87,8 @@ export function buildTimeline(state: ItineraryState, now = nowMinJst()): Timelin
   const day = planDayStatus(state.date)
   const isToday = day === 'today' || day === 'undated'
   const lastDone = state.lastDepartedAt != null ? nowMinJst(new Date(state.lastDepartedAt)) : null
+  let away = false
+  let fromHere: TravelEstimate | undefined
 
   active.forEach((stop, i) => {
     const place = getPlace(stop.placeId)
@@ -85,11 +105,20 @@ export function buildTimeline(state: ItineraryState, now = nowMinJst()): Timelin
       if (i === nextIndex && i > 0 && lastDone != null) projT = lastDone
       projectedArrive = projT + travel.min
       projectedDepart = projectedArrive + stop.durationMin
-      // You cannot leave the current stop in the past (only meaningful on the day itself).
-      if (i === nextIndex && isToday && now > state.startMin) projectedDepart = Math.max(projectedDepart, now)
+      if (i === nextIndex && isToday && here && distanceKm(here, place) > AWAY_KM) {
+        // Still on your way (or never left): you can't arrive before now + the trip from here.
+        fromHere = estimateTravel(herePlace(here), place, stop.transport)
+        away = true
+        projectedArrive = Math.max(projectedArrive, now + fromHere.min)
+        projectedDepart = projectedArrive + stop.durationMin
+      } else if (i === nextIndex && isToday && now > state.startMin) {
+        // You cannot leave the current stop in the past (only meaningful on the day itself).
+        projectedDepart = Math.max(projectedDepart, now)
+      }
     }
 
-    entries.push({ stop, place, prev, travel, plannedArrive, plannedDepart, projectedArrive, projectedDepart })
+    entries.push({ stop, place, prev, travel, plannedArrive, plannedDepart, projectedArrive, projectedDepart, fromHere })
+    fromHere = undefined
     prev = place
     plannedT = plannedDepart
     projT = projectedDepart
@@ -103,6 +132,7 @@ export function buildTimeline(state: ItineraryState, now = nowMinJst()): Timelin
     started:
       state.stops.some((s) => s.status === 'done') ||
       (isToday && now >= state.startMin),
+    awayFromNext: away,
     projectedEnd: entries.at(-1)?.projectedDepart ?? state.startMin,
     plannedEnd: entries.at(-1)?.plannedDepart ?? state.startMin,
   }
@@ -116,7 +146,7 @@ export interface Advice {
 }
 
 /** Turns the projected timeline into one recommendation. Based on estimates only. */
-export function adviseSchedule(state: ItineraryState, tl: Timeline): Advice {
+export function adviseSchedule(state: ItineraryState, tl: Timeline, now = nowMinJst()): Advice {
   if (tl.nextIndex === -1) return { tone: 'ok', message: 'Day complete. Nice work.' }
   const day = planDayStatus(state.date)
   if (day === 'future' && !tl.started) return { tone: 'ok', message: `Planned for ${dateLabel(state.date!)}, starting ${fmtMin(state.startMin)}.` }
@@ -129,6 +159,15 @@ export function adviseSchedule(state: ItineraryState, tl: Timeline): Advice {
 
   // A stop with a known closing time that the projection now misses.
   const atRisk = pending.find((e) => e.place.closesAt != null && e.projectedArrive > e.place.closesAt - 30)
+  // Already too late even if you went straight there now: skip that stop itself.
+  if (atRisk && now + atRisk.travel.min > atRisk.place.closesAt! - 15) {
+    return {
+      tone: 'bad',
+      message: `${placeLabel(atRisk.place)} will likely be closed by the time you get there (${atRisk.place.closesLabel ?? fmtMin(atRisk.place.closesAt!)}).`,
+      skipStopId: atRisk.stop.id,
+      skipLabel: placeLabel(atRisk.place),
+    }
+  }
   if (atRisk) {
     const skippable = pending
       .filter((e) => e !== atRisk && !(e.stop.must || e.place.mandatory) && tl.entries.indexOf(e) < tl.entries.indexOf(atRisk))
@@ -157,7 +196,7 @@ export function adviseSchedule(state: ItineraryState, tl: Timeline): Advice {
     }
   }
 
-  if (delay > 10) return { tone: 'warn', message: `${behind}Still on track for the must-see stops.` }
+  if (delay > 10) return { tone: 'warn', message: `${behind}At this pace you finish around ${fmtMin(tl.projectedEnd)}.` }
   if (delay < -10) return { tone: 'ok', message: `About ${-delay} min ahead of plan.` }
   return { tone: 'ok', message: 'On schedule.' }
 }
