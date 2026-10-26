@@ -11,6 +11,7 @@ import { MODE_META } from './Journey'
 import { refreshWeather } from '../lib/weather'
 import { PlacePhoto } from './PlacePhoto'
 import { RainWarning, WeatherBadge } from './Weather'
+import { JoinWithInvite, type JoinInvite } from './Lobby'
 import { PlaceSearch } from './PlaceSearch'
 import { Button, Card, Notice } from './ui'
 
@@ -25,6 +26,7 @@ interface Props {
   /** One plan per day of the trip. */
   onDone: (days: ItineraryState[], prefs: Partial<Prefs>) => void
   onCancel?: () => void
+  onJoinInvite: JoinInvite
 }
 
 /** Starting point when you have no hotel yet: a city centre. */
@@ -66,7 +68,8 @@ const LUUPS: { id: LuupPlan; label: string; hint: string }[] = [
   { id: 'sub', label: 'Subscription', hint: '¥200 per 30 min, LUUP up to ~4 km' },
 ]
 
-export function PlanWizard({ geo, firstRun, initialHome, prefs, visited, onDone, onCancel }: Props) {
+export function PlanWizard({ geo, firstRun, initialHome, prefs, visited, onDone, onCancel, onJoinInvite }: Props) {
+  const [joining, setJoining] = useState(false)
   const steps: Step[] = firstRun ? ['welcome', 'stay', 'when', 'likes', 'extras', 'preview'] : ['stay', 'when', 'likes', 'extras', 'preview']
   const [step, setStep] = useState<Step>(steps[0])
   const idx = steps.indexOf(step)
@@ -159,6 +162,12 @@ export function PlanWizard({ geo, firstRun, initialHome, prefs, visited, onDone,
               <li>🚆 Step-by-step trains for first-timers: which line, which direction, where to get off.</li>
               <li>📍 Live help wherever you are: food, toilets, Donki, landmarks and the way home.</li>
             </ul>
+            <Card className="p-4 space-y-3">
+              <button className="w-full text-left font-semibold text-accent" onClick={() => setJoining((v) => !v)}>
+                Joining friends who already have a plan? Paste their invite
+              </button>
+              {joining && <JoinWithInvite onJoinInvite={onJoinInvite} />}
+            </Card>
             <p className="text-muted">Tokyo, Kyoto, Osaka and day trips like Kamakura, Hakone, Fuji and Nara. About a minute to set up. Everything stays on your phone.</p>
           </div>
         )}

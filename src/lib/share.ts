@@ -71,6 +71,33 @@ export const incomingCode = (): string | null => /[#&]plan=([^&]+)/.exec(locatio
 /** The lobby code in the current address, if someone opened an invite. */
 export const incomingLobby = (): string | null => /[#&]lobby=([a-z0-9]{6,20})/.exec(location.hash)?.[1] ?? null
 
+export interface ParsedInvite {
+  lobby: string | null
+  plan: string | null
+}
+
+/**
+ * Reads an invite pasted into the app: a full lobby or plan link, or just a
+ * lobby code ("6gm8f-qaf3r"). Needed because iPhone opens links in Safari,
+ * which does not share storage with the Home Screen app.
+ */
+export function parseInvite(text: string): ParsedInvite | null {
+  const t = text.trim()
+  const lobby = /lobby=([a-z0-9]{6,20})/i.exec(t)?.[1]?.toLowerCase() ?? null
+  const plan = /plan=([A-Za-z0-9_-]+)/.exec(t)?.[1] ?? null
+  if (lobby || plan) return { lobby, plan }
+  const bare = t.toLowerCase().replace(/[\s-]/g, '')
+  return /^[a-z0-9]{6,20}$/.test(bare) ? { lobby: bare, plan: null } : null
+}
+
+/** "6gm8fqaf3r" → "6gm8f-qaf3r" for reading out or typing. */
+export const formatLobbyCode = (code: string) => code.replace(/(.{5})(?=.)/g, '$1-')
+
+/** Running as an installed Home Screen app rather than in the browser. */
+export const isStandalone = () => window.matchMedia('(display-mode: standalone)').matches || (navigator as { standalone?: boolean }).standalone === true
+
+export const isIos = () => /iPhone|iPad|iPod/.test(navigator.userAgent)
+
 export function clearIncoming(): void {
   history.replaceState(null, '', location.pathname + location.search)
 }

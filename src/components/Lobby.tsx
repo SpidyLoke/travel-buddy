@@ -1,10 +1,10 @@
-import { Check, ChevronRight, Copy, LoaderCircle, LogOut, Share2, Users } from 'lucide-react'
+import { Check, ChevronRight, ClipboardPaste, Copy, LoaderCircle, LogOut, Share2, Users } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { renderSVG } from 'uqr'
 import { getPlace, placeLabel } from '../data/places'
 import type { LobbyApi } from '../hooks/useLobby'
 import { recentActivity } from '../lib/lobby'
-import { lobbyUrl } from '../lib/share'
+import { formatLobbyCode, isIos, isStandalone, lobbyUrl } from '../lib/share'
 import { dateLabel } from '../lib/time'
 import type { ItineraryState } from '../types'
 import { Button, Card, Notice, SectionTitle, Sheet } from './ui'
@@ -30,7 +30,13 @@ export function LobbyBar({ lobby, onOpen }: { lobby: LobbyApi; onOpen: () => voi
         <span className="block text-[14px] font-semibold text-accent">
           Group lobby · {online} of {total} online{lobby.connecting && lobby.peerCount === 0 ? ' · connecting…' : ''}
         </span>
-        <span className="block truncate text-[13px] text-muted">{last ? `${last.who === lobby.name ? 'You' : last.who} ${last.what} · ${ago(last.t)}` : 'Changes sync to everyone here'}</span>
+        <span className="block truncate text-[13px] text-muted">
+          {lobby.doc.order.v.length === 0
+            ? "Waiting for the group's plan: it arrives when another member has the app open"
+            : last
+              ? `${last.who === lobby.name ? 'You' : last.who} ${last.what} · ${ago(last.t)}`
+              : 'Changes sync to everyone here'}
+        </span>
       </span>
       <ChevronRight size={18} className="shrink-0 text-muted" />
     </button>
@@ -46,6 +52,13 @@ function Invite({ lobby, state }: { lobby: LobbyApi; state: ItineraryState }) {
   if (!url) return <LoaderCircle className="mx-auto animate-spin text-muted" />
   return (
     <div className="space-y-2">
+      <Card className="flex items-center justify-between gap-3 px-4 py-3">
+        <span>
+          <span className="block text-[12px] font-semibold uppercase text-muted">Lobby code</span>
+          <span className="block font-mono text-xl font-bold tracking-wider">{formatLobbyCode(lobby.code!)}</span>
+        </span>
+        <span className="text-right text-[12px] text-muted">Friends using the Home Screen app: Share → Join with invite</span>
+      </Card>
       {url.length < 2800 && (
         <Card className="p-4">
           <div className="mx-auto w-full max-w-[240px] rounded-xl bg-white p-2" dangerouslySetInnerHTML={{ __html: renderSVG(url, { border: 1 }) }} />
@@ -54,7 +67,18 @@ function Invite({ lobby, state }: { lobby: LobbyApi; state: ItineraryState }) {
       )}
       <div className="grid grid-cols-2 gap-2">
         {'share' in navigator && (
-          <Button variant="primary" onClick={() => navigator.share({ title: 'Join our Tokyo day', url }).catch(() => {})}>
+          <Button
+            variant="primary"
+            onClick={() =>
+              navigator
+                .share({
+                  title: 'Join our trip lobby',
+                  text: `Join our trip lobby in Tokyo Day. Open the link, or if you use the app from your Home Screen, open it and tap Share → Join with invite, then paste this. Code: ${formatLobbyCode(lobby.code!)}`,
+                  url,
+                })
+                .catch(() => {})
+            }
+          >
             <Share2 size={18} /> Invite
           </Button>
         )}
@@ -181,8 +205,11 @@ export function StartLobby({ lobby }: { lobby: LobbyApi }) {
 }
 
 /** Shown when the app is opened from a lobby invite. */
-export function JoinLobbySheet({ plan, onJoin, onClose }: { plan: ItineraryState | null; onJoin: (name: string) => void; onClose: () => void }) {
+export function JoinLobbySheet({ plan, link, onJoin, onClose }: { plan: ItineraryState | null; link: string | null; onJoin: (name: string) => void; onClose: () => void }) {
   const [name, setName] = useState('')
+  const [copied, setCopied] = useState(false)
+  // Opened from a link in Safari on iPhone: the Home Screen app can't see this.
+  const inSafari = !!link && isIos() && !isStandalone()
   const stops = plan?.stops.filter((s) => s.status !== 'skipped') ?? []
   return (
     <Sheet title="Join the group lobby" onClose={onClose}>
@@ -193,6 +220,28 @@ export function JoinLobbySheet({ plan, onJoin, onClose }: { plan: ItineraryState
           if (name.trim()) onJoin(name.trim())
         }}
       >
+        {inSafari && (
+          <Notice tone="info">
+            <span className="block">
+              <b>Using the app from your Home Screen?</b> iPhone opened this in Safari, which keeps separate data. Copy the invite, open the app, then tap Share → Join
+              with invite → Paste.
+            </span>
+            <Button
+              type="button"
+              className="mt-2 w-full"
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(link!)
+                  setCopied(true)
+                } catch {
+                  prompt('Copy this invite', link!)
+                }
+              }}
+            >
+              {copied ? <Check size={18} className="text-ok" /> : <Copy size={18} />} {copied ? 'Copied: now open the app' : 'Copy invite'}
+            </Button>
+          </Notice>
+        )}
         {plan && (
           <p className="px-1 text-[15px] text-muted">
             {plan.date ? `${dateLabel(plan.date)} · ` : ''}
@@ -208,7 +257,7 @@ export function JoinLobbySheet({ plan, onJoin, onClose }: { plan: ItineraryState
           className="w-full rounded-2xl bg-card px-4 py-3 text-[16px]"
         />
         <Button type="submit" variant="primary" className="w-full min-h-14 text-[17px]" disabled={!name.trim()}>
-          <Users size={20} /> Join
+          <Users size={20} /> {inSafari ? 'Join here in Safari instead' : 'Join'}
         </Button>
         <Button type="button" className="w-full" onClick={onClose}>
           Not now
@@ -216,5 +265,60 @@ export function JoinLobbySheet({ plan, onJoin, onClose }: { plan: ItineraryState
         <p className="px-1 text-[12px] text-muted">Joining replaces the plan on this phone with the group's. Your name is shown to others in the lobby.</p>
       </form>
     </Sheet>
+  )
+}
+
+export type JoinInvite = (text: string) => Promise<boolean | 'already'>
+
+/**
+ * Join from inside the app by pasting an invite link or typing the code.
+ * iPhone opens shared links in Safari, which can't see the Home Screen app's data.
+ */
+export function JoinWithInvite({ onJoinInvite }: { onJoinInvite: JoinInvite }) {
+  const [text, setText] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const submit = async (value: string) => {
+    setError(null)
+    const ok = await onJoinInvite(value)
+    if (ok === false) setError("That isn't an invite link or lobby code.")
+    else if (ok === 'already') setError("You're already in that lobby.")
+  }
+  return (
+    <form
+      className="space-y-2"
+      onSubmit={(e) => {
+        e.preventDefault()
+        if (text.trim()) submit(text)
+      }}
+    >
+      <div className="flex gap-2">
+        <input
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="Paste invite link or type code"
+          autoCapitalize="none"
+          autoCorrect="off"
+          className="min-w-0 flex-1 rounded-2xl bg-card px-4 py-3 text-[16px]"
+        />
+        <Button
+          type="button"
+          onClick={async () => {
+            try {
+              const clip = await navigator.clipboard.readText()
+              setText(clip)
+              if (clip.trim()) submit(clip)
+            } catch {
+              setError('Could not read the clipboard: long-press the box and tap Paste.')
+            }
+          }}
+        >
+          <ClipboardPaste size={18} /> Paste
+        </Button>
+      </div>
+      <Button type="submit" variant="primary" className="w-full" disabled={!text.trim()}>
+        <Users size={18} /> Join
+      </Button>
+      {error && <p className="px-1 text-[13px] text-bad">{error}</p>}
+    </form>
   )
 }

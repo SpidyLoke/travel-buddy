@@ -106,6 +106,9 @@ export function useLobby(itin: ItineraryApi) {
     hello.onMessage = (h, { peerId }) => {
       setConnecting(false)
       setPeers((p) => ({ ...p, [peerId]: h.member }))
+      // Their hello proves the channel works both ways: (re)send our copy so
+      // a newcomer gets the plan even if the join-time send was too early.
+      if (docRef.current) void docAction.send(JSON.stringify(docRef.current), { target: peerId }).catch(() => {})
       if (docRef.current && !docRef.current.members[h.member]) persist(setMember(docRef.current, h.member, h.name))
     }
     room.onPeerJoin = (peerId) => {
@@ -167,7 +170,9 @@ export function useLobby(itin: ItineraryApi) {
 
   const join = useCallback(
     (lobbyCode: string, name: string, plan: ItineraryState | null) => {
-      const base = plan ?? itin.state
+      // Code-only join: start empty so this phone's own plan doesn't get mixed
+      // into the group's; the group's plan arrives from the first member online.
+      const base = plan ?? { ...itin.state, stops: [], customPlaces: [] }
       const doc = setMember(seedFrom(base, me, name), me, name)
       const s = { code: lobbyCode, name, doc }
       docRef.current = doc

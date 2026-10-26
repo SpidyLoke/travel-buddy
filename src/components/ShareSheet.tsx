@@ -4,13 +4,25 @@ import { renderSVG } from 'uqr'
 import { placeLabel, getPlace } from '../data/places'
 import type { LobbyApi } from '../hooks/useLobby'
 import { shareUrl } from '../lib/share'
-import { StartLobby } from './Lobby'
+import { JoinWithInvite, StartLobby, type JoinInvite } from './Lobby'
 import { dateLabel } from '../lib/time'
 import type { ItineraryState } from '../types'
-import { Button, Card, Notice, Sheet } from './ui'
+import { Button, Card, Notice, SectionTitle, Sheet } from './ui'
 
 /** Link + QR code that opens this plan on someone else's phone. */
-export function ShareSheet({ state, lobby, onOpenLobby, onClose }: { state: ItineraryState; lobby: LobbyApi; onOpenLobby: () => void; onClose: () => void }) {
+export function ShareSheet({
+  state,
+  lobby,
+  onOpenLobby,
+  onJoinInvite,
+  onClose,
+}: {
+  state: ItineraryState
+  lobby: LobbyApi
+  onOpenLobby: () => void
+  onJoinInvite: JoinInvite
+  onClose: () => void
+}) {
   const [mode, setMode] = useState<'live' | 'copy'>('live')
   const [url, setUrl] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
@@ -41,7 +53,12 @@ export function ShareSheet({ state, lobby, onOpenLobby, onClose }: { state: Itin
               <Users size={20} /> You're in a lobby: invite people
             </Button>
           ) : (
-            <StartLobby lobby={lobby} />
+            <>
+              <StartLobby lobby={lobby} />
+              <SectionTitle>Join with invite</SectionTitle>
+              <p className="-mt-1 px-1 text-[13px] text-muted">Got a link or code from a friend? Paste it here (links open in Safari, not in this app).</p>
+              <JoinWithInvite onJoinInvite={onJoinInvite} />
+            </>
           )
         ) : !url ? (
           <div className="flex justify-center py-10 text-muted">

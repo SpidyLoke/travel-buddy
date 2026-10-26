@@ -10,10 +10,12 @@ import { enableReminders, reminderSupport } from '../hooks/useReminders'
 import { downloadIcs } from '../lib/calendar'
 import type { ItineraryState, LuupPlan, ThemePref } from '../types'
 import { OfflineButton } from './OfflineButton'
+import { JoinWithInvite, type JoinInvite } from './Lobby'
 import { PlaceSearch } from './PlaceSearch'
 import { Button, Card, SectionTitle, Sheet } from './ui'
 
 interface Props {
+  onJoinInvite: JoinInvite
   tripDays: ItineraryState[]
   geo: Geo
   itin: ItineraryApi
@@ -29,7 +31,7 @@ const LUUPS: { id: LuupPlan; label: string }[] = [
   { id: 'sub', label: 'Subscription' },
 ]
 
-export function SettingsSheet({ tripDays, geo, itin, prefs, theme, onPlanNew, onClose }: Props) {
+export function SettingsSheet({ onJoinInvite, tripDays, geo, itin, prefs, theme, onPlanNew, onClose }: Props) {
   const [editHome, setEditHome] = useState(false)
   const support = reminderSupport()
   const home = homePlace(itin.state)
@@ -41,6 +43,9 @@ export function SettingsSheet({ tripDays, geo, itin, prefs, theme, onPlanNew, on
         <Button variant="primary" className="w-full min-h-14 text-[17px]" onClick={onPlanNew}>
           <Sparkles size={20} /> Plan a new day
         </Button>
+
+        <SectionTitle>Join a group or shared plan</SectionTitle>
+        <JoinWithInvite onJoinInvite={onJoinInvite} />
 
         <SectionTitle>Home / where you're staying</SectionTitle>
         <Card className="p-4 space-y-3">

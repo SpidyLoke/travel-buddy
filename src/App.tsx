@@ -31,7 +31,7 @@ import { nowMinJst, todayJst } from './lib/time'
 import { refreshWeather } from './lib/weather'
 import { PLACES, placeLabel } from './data/places'
 import { refreshFx } from './lib/fx'
-import { clearIncoming, decodePlan, incomingCode, incomingLobby } from './lib/share'
+import { clearIncoming, decodePlan, parseInvite } from './lib/share'
 import type { ItineraryState, Place } from './types'
 
 export default function App() {
@@ -56,14 +56,26 @@ export default function App() {
 
   // Opened from a shared plan link or a lobby invite?
   const [incoming, setIncoming] = useState<ItineraryState | null>(null)
-  const [invite, setInvite] = useState<{ code: string; plan: ItineraryState | null } | null>(null)
+  const [invite, setInvite] = useState<{ code: string; plan: ItineraryState | null; link: string | null } | null>(null)
+
+  /** Opens a lobby invite or shared plan from a link or pasted text. False if it isn't one. */
+  const openInvite = async (text: string, fromLink: boolean): Promise<boolean | 'already'> => {
+    const parsed = parseInvite(text)
+    if (!parsed) return false
+    const plan = parsed.plan ? await decodePlan(parsed.plan) : null
+    if (parsed.lobby) {
+      if (parsed.lobby === lobby.code) return 'already'
+      setInvite({ code: parsed.lobby, plan, link: fromLink ? location.href : null })
+      return true
+    }
+    if (!plan) return false
+    setIncoming(plan)
+    return true
+  }
+
   useEffect(() => {
-    const code = incomingCode()
-    const lobbyCode = incomingLobby()
-    if (lobbyCode) {
-      if (lobbyCode === lobby.code) return clearIncoming()
-      ;(code ? decodePlan(code) : Promise.resolve(null)).then((plan) => setInvite({ code: lobbyCode, plan }))
-    } else if (code) decodePlan(code).then((plan) => (plan ? setIncoming(plan) : clearIncoming()))
+    if (!location.hash) return
+    openInvite(location.hash, true).then((ok) => ok !== true && clearIncoming())
     // Only on first load.
   }, [])
 
@@ -177,6 +189,7 @@ export default function App() {
       {invite && (
         <JoinLobbySheet
           plan={invite.plan}
+          link={invite.link}
           onJoin={(name) => {
             lobby.join(invite.code, name, invite.plan)
             prefs.update({ onboarded: true })
@@ -225,10 +238,15 @@ export default function App() {
             setShareOpen(false)
             setLobbyOpen(true)
           }}
+          onJoinInvite={async (text) => {
+            const ok = await openInvite(text, false)
+            if (ok === true) setShareOpen(false)
+            return ok
+          }}
           onClose={() => setShareOpen(false)}
         />
       )}
-      {settingsOpen && <SettingsSheet tripDays={tripPlan.days} geo={geo} itin={itin} prefs={prefs} theme={theme} onPlanNew={planNew} onClose={() => setSettingsOpen(false)} />}
+      {settingsOpen && <SettingsSheet onJoinInvite={async (text) => { const ok = await openInvite(text, false); if (ok === true) setSettingsOpen(false); return ok }} tripDays={tripPlan.days} geo={geo} itin={itin} prefs={prefs} theme={theme} onPlanNew={planNew} onClose={() => setSettingsOpen(false)} />}
       {showWizard && (
         <PlanWizard
           geo={geo}
@@ -237,6 +255,7 @@ export default function App() {
           prefs={prefs.prefs}
           visited={loadVisited()}
           onCancel={prefs.prefs.onboarded ? () => setWizard(null) : undefined}
+          onJoinInvite={(text) => openInvite(text, false)}
           onDone={(days, patch) => {
             prefs.update(patch)
             tripPlan.setDays(days)
