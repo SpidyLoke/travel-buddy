@@ -1,6 +1,11 @@
 import type { LatLng, Place } from '../types'
 import { distanceKm } from './geo'
 import { fetchPhotoInfo, type Photo } from './photos'
+import { classify } from './discover'
+import { osmThingsToDo, samePlace, shoppingAreas, SHOP_FILTER } from './osmPlaces'
+import { overpass, type OsmElement } from './overpass'
+
+export { overpass, type OsmElement }
 
 // Live, key-free data sources, all CORS-enabled:
 //   OpenStreetMap via Overpass  – shops, food, toilets, ATMs… around a point
@@ -10,70 +15,133 @@ import { fetchPhotoInfo, type Photo } from './photos'
 // hours come from OSM tags when present.
 
 export type CategoryId =
-  | 'landmarks'
-  | 'donki'
-  | 'konbini'
+  | 'todo'
+  | 'shopping'
   | 'food'
-  | 'ramen'
+  | 'halal'
+  | 'vegetarian'
+  | 'prayer'
   | 'cafe'
+  | 'konbini'
+  | 'souvenirs'
+  | 'donki'
+  | 'ramen'
   | 'toilets'
   | 'atm'
   | 'drugstore'
   | 'lockers'
-  | 'souvenirs'
   | 'station'
-  | 'halal'
-  | 'vegetarian'
-  | 'prayer'
 
 export interface Category {
   id: CategoryId
   label: string
+  /** Label outside Japan, when different. */
+  labelAbroad?: string
+  /** First search radius; widened automatically when little turns up. */
   radiusM: number
+  /** Widest search when the first finds little (small towns, countryside). */
+  maxRadiusM: number
   /** Overpass filter(s); each is applied with the around() clause. */
   filters?: string[]
   note?: string
+  noteAbroad?: string
+  /** Only offered in Japan (Don Quijote, ramen, coin lockers). */
+  japanOnly?: boolean
 }
 
 export const CATEGORIES: Category[] = [
-  { id: 'landmarks', label: 'Landmarks', radiusM: 1500 },
+  { id: 'todo', label: 'Things to do', radiusM: 2000, maxRadiusM: 15000, note: 'Landmarks from Wikipedia and attractions mapped on OpenStreetMap.' },
   {
-    id: 'donki',
-    label: 'Don Quijote',
-    radiusM: 4000,
-    filters: ['["name"~"ドン・キホーテ|ドンキ|Don Quijote|DONKI",i]', '["brand"~"ドン・キホーテ|Don Quijote",i]'],
+    id: 'shopping',
+    label: 'Shopping areas',
+    radiusM: 1500,
+    maxRadiusM: 10000,
+    note: 'Shops close together grouped into one area to wander, plus malls and outlets. Add an area to your day as one stop.',
   },
-  { id: 'konbini', label: 'Konbini', radiusM: 700, filters: ['["shop"="convenience"]'], note: 'Food, drinks, toilets in many, and 7-Eleven ATMs.' },
-  { id: 'food', label: 'Food', radiusM: 600, filters: ['["amenity"~"^(restaurant|fast_food|food_court)$"]'] },
+  { id: 'food', label: 'Food', radiusM: 600, maxRadiusM: 5000, filters: ['["amenity"~"^(restaurant|fast_food|food_court)$"]'] },
   {
     id: 'halal',
     label: 'Halal',
     radiusM: 2000,
+    maxRadiusM: 10000,
     filters: ['["diet:halal"~"yes|only"]', '["cuisine"~"halal",i]', '["name"~"halal|ハラル",i]'],
     note: 'From OpenStreetMap tags: confirm halal status with the restaurant.',
+    noteAbroad: 'From OpenStreetMap tags. In Malaysia look for the JAKIM halal certificate; many places are halal without being tagged.',
   },
   {
     id: 'vegetarian',
     label: 'Vegetarian',
     radiusM: 1500,
+    maxRadiusM: 8000,
     filters: ['["diet:vegetarian"~"yes|only"]', '["diet:vegan"~"yes|only"]', '["cuisine"~"vegetarian|vegan",i]'],
   },
   {
     id: 'prayer',
     label: 'Prayer space',
     radiusM: 5000,
+    maxRadiusM: 20000,
     filters: ['["amenity"="place_of_worship"]["religion"="muslim"]', '["amenity"="prayer_room"]'],
     note: 'Mosques and mapped prayer rooms. Many stations and department stores have prayer rooms too: ask at information.',
+    noteAbroad: 'Mosques and mapped prayer rooms (surau). Malls and petrol stations often have one: ask or look for the signs.',
   },
-  { id: 'ramen', label: 'Ramen', radiusM: 1200, filters: ['["cuisine"~"ramen",i]'] },
-  { id: 'cafe', label: 'Café', radiusM: 700, filters: ['["amenity"="cafe"]'] },
-  { id: 'toilets', label: 'Toilets', radiusM: 800, filters: ['["amenity"="toilets"]'], note: 'Stations, parks and department stores almost always have free toilets too.' },
-  { id: 'atm', label: 'ATM', radiusM: 1000, filters: ['["amenity"="atm"]'], note: '7-Eleven (Seven Bank) ATMs generally accept overseas cards.' },
-  { id: 'drugstore', label: 'Drugstore', radiusM: 900, filters: ['["shop"="chemist"]', '["amenity"="pharmacy"]'] },
-  { id: 'lockers', label: 'Lockers', radiusM: 1200, filters: ['["amenity"="locker"]', '["amenity"="luggage_locker"]'], note: 'Coin lockers are mostly inside stations; OSM only lists some.' },
-  { id: 'souvenirs', label: 'Souvenirs', radiusM: 900, filters: ['["shop"="gift"]', '["shop"="souvenir"]'] },
-  { id: 'station', label: 'Stations', radiusM: 1500, filters: ['["railway"="station"]'] },
+  { id: 'cafe', label: 'Café', radiusM: 700, maxRadiusM: 5000, filters: ['["amenity"="cafe"]'] },
+  {
+    id: 'konbini',
+    label: 'Konbini',
+    labelAbroad: 'Convenience',
+    radiusM: 700,
+    maxRadiusM: 5000,
+    filters: ['["shop"="convenience"]'],
+    note: 'Food, drinks, toilets in many, and 7-Eleven ATMs.',
+    noteAbroad: 'Snacks, drinks, SIM top-ups and often an ATM.',
+  },
+  { id: 'souvenirs', label: 'Souvenirs', radiusM: 900, maxRadiusM: 8000, filters: ['["shop"="gift"]', '["shop"="souvenir"]'] },
+  {
+    id: 'donki',
+    label: 'Don Quijote',
+    radiusM: 4000,
+    maxRadiusM: 15000,
+    filters: ['["name"~"ドン・キホーテ|ドンキ|Don Quijote|DONKI",i]', '["brand"~"ドン・キホーテ|Don Quijote",i]'],
+    japanOnly: true,
+  },
+  { id: 'ramen', label: 'Ramen', radiusM: 1200, maxRadiusM: 6000, filters: ['["cuisine"~"ramen",i]'], japanOnly: true },
+  {
+    id: 'toilets',
+    label: 'Toilets',
+    radiusM: 800,
+    maxRadiusM: 4000,
+    filters: ['["amenity"="toilets"]'],
+    note: 'Stations, parks and department stores almost always have free toilets too.',
+    noteAbroad: 'Malls, petrol stations and big mosques usually have toilets; some charge a small fee.',
+  },
+  {
+    id: 'atm',
+    label: 'ATM',
+    radiusM: 1000,
+    maxRadiusM: 6000,
+    filters: ['["amenity"="atm"]', '["amenity"="bureau_de_change"]'],
+    note: '7-Eleven (Seven Bank) ATMs generally accept overseas cards.',
+    noteAbroad: 'ATMs and money changers. Bank ATMs inside malls are the safest bet.',
+  },
+  { id: 'drugstore', label: 'Pharmacy', radiusM: 900, maxRadiusM: 6000, filters: ['["shop"="chemist"]', '["amenity"="pharmacy"]'] },
+  {
+    id: 'lockers',
+    label: 'Lockers',
+    radiusM: 1200,
+    maxRadiusM: 4000,
+    filters: ['["amenity"="locker"]', '["amenity"="luggage_locker"]'],
+    note: 'Coin lockers are mostly inside stations; OSM only lists some.',
+    japanOnly: true,
+  },
+  { id: 'station', label: 'Stations', radiusM: 1500, maxRadiusM: 10000, filters: ['["railway"="station"]', '["amenity"="bus_station"]'] },
 ]
+
+/** Categories for where the plan is, with local labels and notes. */
+export function categoriesFor(inJapan: boolean): Category[] {
+  return CATEGORIES.filter((c) => inJapan || !c.japanOnly).map((c) =>
+    inJapan ? c : { ...c, label: c.labelAbroad ?? c.label, note: c.noteAbroad ?? (c.note?.includes('7-Eleven') || c.note?.includes('Coin') ? undefined : c.note) },
+  )
+}
 
 export interface NearbyResult {
   place: Place
@@ -83,7 +151,6 @@ export interface NearbyResult {
   photo?: Photo | null
 }
 
-const OVERPASS = ['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter']
 
 export function makePlace(id: string, name: string, nameJa: string, lat: number, lng: number, area: string, extra: Partial<Place> = {}): Place {
   return {
@@ -105,40 +172,16 @@ export function makePlace(id: string, name: string, nameJa: string, lat: number,
   }
 }
 
-export interface OsmElement {
-  type: string
-  id: number
-  lat?: number
-  lon?: number
-  center?: { lat: number; lon: number }
-  tags?: Record<string, string>
-}
-
-export async function overpass(query: string, signal?: AbortSignal): Promise<OsmElement[]> {
-  let lastErr: unknown
-  for (const url of OVERPASS) {
-    try {
-      const res = await fetch(url, { method: 'POST', body: new URLSearchParams({ data: query }), signal })
-      if (!res.ok) throw new Error(`Overpass ${res.status}`)
-      return (await res.json()).elements ?? []
-    } catch (e) {
-      if (signal?.aborted) throw e
-      lastErr = e
-    }
-  }
-  throw lastErr
-}
-
 function osmToResult(el: OsmElement, at: LatLng, cat: Category): NearbyResult | null {
   const lat = el.lat ?? el.center?.lat
   const lng = el.lon ?? el.center?.lon
   const t = el.tags ?? {}
   const ja = t.name ?? t['name:ja'] ?? t.brand
   if (lat == null || lng == null || !ja) return null
-  const en = t['name:en'] ?? t['brand:en'] ?? ja
+  const en = t['name:en'] ?? t['brand:en'] ?? t['name:ja-Latn'] ?? ja
   const detail = [t.cuisine?.replace(/;/g, ', '), t.opening_hours ? `Hours (OSM): ${t.opening_hours}` : undefined].filter(Boolean).join(' · ')
   const place = makePlace(`osm-${el.type}-${el.id}`, en, ja, lat, lng, cat.label, {
-    kind: cat.id === 'landmarks' ? 'sight' : 'shop',
+    kind: cat.id === 'todo' ? 'sight' : 'shop',
     hours: t.opening_hours ? `${t.opening_hours} (from OpenStreetMap, may be out of date)` : undefined,
     suggestedMin: cat.id === 'donki' ? 40 : cat.id === 'food' || cat.id === 'ramen' ? 45 : 20,
   })
@@ -184,27 +227,55 @@ async function wikiNearby(at: LatLng, radiusM: number, signal?: AbortSignal): Pr
   return results
 }
 
-/** Places of one category around a point, nearest first. */
-export async function findNearby(cat: Category, at: LatLng, signal?: AbortSignal): Promise<NearbyResult[]> {
-  let results: NearbyResult[]
-  if (cat.id === 'landmarks') {
-    results = await wikiNearby(at, cat.radiusM, signal)
-  } else {
-    const around = `(around:${cat.radiusM},${at.lat.toFixed(5)},${at.lng.toFixed(5)})`
-    const q = `[out:json][timeout:20];(${cat.filters!.map((f) => `nwr${around}${f};`).join('')});out center 60;`
-    results = (await overpass(q, signal)).map((el) => osmToResult(el, at, cat)).filter((r): r is NearbyResult => !!r)
+async function searchOnce(cat: Category, at: LatLng, radiusM: number, signal?: AbortSignal): Promise<NearbyResult[]> {
+  if (cat.id === 'todo') {
+    const [wiki, osm] = await Promise.all([wikiNearby(at, radiusM, signal).catch(() => null), osmThingsToDo(at, radiusM, 0, signal).catch(() => null)])
+    if (!wiki && !osm) throw new Error('Nothing reachable')
+    const sights = (wiki ?? []).filter((r) => classify(r.place.description, r.place.name))
+    const extra = (osm?.attractions ?? []).filter((p) => !sights.some((r) => samePlace(r.place, p)))
+    return [...sights, ...extra.map((p) => ({ place: p, km: distanceKm(at, p), detail: [p.area, p.hours].filter(Boolean).join(' · ') }))]
+  }
+  if (cat.id === 'shopping') {
+    const pt = `${at.lat.toFixed(5)},${at.lng.toFixed(5)}`
+    const els = await overpass(`[out:json][timeout:25];(nwr${SHOP_FILTER}(around:${radiusM},${pt});nwr["amenity"="marketplace"]["name"](around:${radiusM},${pt}););out center tags 2000;`, signal)
+    const markets = els
+      .filter((e) => e.tags?.amenity === 'marketplace')
+      .map((el) => osmToResult(el, at, cat))
+      .filter((r): r is NearbyResult => !!r)
+    const areas = shoppingAreas(els.filter((e) => e.tags?.shop)).map((p) => ({ place: p, km: distanceKm(at, p), detail: p.description }))
+    return [...areas, ...markets]
+  }
+  const around = `(around:${radiusM},${at.lat.toFixed(5)},${at.lng.toFixed(5)})`
+  const q = `[out:json][timeout:20];(${cat.filters!.map((f) => `nwr${around}${f};`).join('')});out center 60;`
+  return (await overpass(q, signal)).map((el) => osmToResult(el, at, cat)).filter((r): r is NearbyResult => !!r)
+}
+
+/**
+ * Places of one category around a point, nearest first. When little turns up
+ * (a small town, the countryside) the search widens up to the category's limit.
+ */
+export async function findNearby(cat: Category, at: LatLng, signal?: AbortSignal): Promise<{ results: NearbyResult[]; radiusM: number }> {
+  let radiusM = cat.radiusM
+  let results = await searchOnce(cat, at, radiusM, signal)
+  // A few shopping areas is plenty; single shops and sights want a few more to choose from.
+  const enough = cat.id === 'shopping' ? 3 : 5
+  while (results.length < enough && radiusM < cat.maxRadiusM) {
+    radiusM = Math.min(cat.maxRadiusM, radiusM * 3)
+    results = await searchOnce(cat, at, radiusM, signal)
   }
   const seen = new Set<string>()
-  return results
+  const sorted = results
     .sort((a, b) => a.km - b.km)
     .filter((r) => {
       // Collapse duplicates (same name within ~50 m).
-      const k = `${r.place.nameJa}|${r.place.lat.toFixed(3)}|${r.place.lng.toFixed(3)}`
+      const k = `${r.place.nameJa || r.place.name}|${r.place.lat.toFixed(3)}|${r.place.lng.toFixed(3)}`
       if (seen.has(k)) return false
       seen.add(k)
       return true
     })
-    .slice(0, 30)
+  // Shopping: the biggest areas matter more than the nearest single shop.
+  if (cat.id === 'shopping') sorted.sort((a, b) => (b.place.score ?? 0) - (a.place.score ?? 0) || a.km - b.km)
+  return { results: sorted.slice(0, 30), radiusM }
 }
 
 interface PhotonFeature {

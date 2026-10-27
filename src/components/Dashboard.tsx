@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { Check, Crosshair, Home, JapaneseYen, RefreshCw, Utensils, Settings, Share, Sparkles, X, ListChecks, LocateFixed, Navigation, SkipForward, WifiOff } from 'lucide-react'
+import { Check, Compass, Crosshair, Home, JapaneseYen, RefreshCw, Utensils, Settings, Share, Sparkles, X, ListChecks, LocateFixed, Navigation, SkipForward, WifiOff } from 'lucide-react'
 import { findTrainLeg } from '../data/legs'
 import { PLACES, placeLabel } from '../data/places'
 import type { Geo } from '../hooks/useGeolocation'
@@ -39,6 +39,7 @@ interface Props {
   tripPlan: TripApi
   openFood: (slot: MealSlot) => void
   planNew: () => void
+  openNearby: () => void
   openJourney: () => void
   showOnMap: (p: Place) => void
   trip: HomeTrip
@@ -48,7 +49,7 @@ interface Props {
 /** Within this radius of the next stop we treat the user as having arrived. */
 const ARRIVED_KM = 0.35
 
-export function Dashboard({ now, geo, itin, timeline, advice, online, openSettings, openConverter, onReplan, lobbyBar, tripPlan, openFood, planNew, openJourney, showOnMap, trip, openHome }: Props) {
+export function Dashboard({ now, geo, itin, timeline, advice, online, openSettings, openConverter, onReplan, lobbyBar, tripPlan, openFood, planNew, openNearby, openJourney, showOnMap, trip, openHome }: Props) {
   const cur = timeline.nextIndex >= 0 ? timeline.entries[timeline.nextIndex] : undefined
   const total = timeline.entries.length
   const done = timeline.entries.filter((e) => e.stop.status === 'done').length
@@ -73,6 +74,7 @@ export function Dashboard({ now, geo, itin, timeline, advice, online, openSettin
       ? buildTrainSteps(leg, cur.place)[0]?.title
       : undefined
   const day = planDayStatus(itin.state.date, now)
+  const empty = itin.state.stops.length === 0
   const prefs = getPrefs()
   // From an hour before a meal until an hour after, on the day itself.
   const nowMin = nowMinLocal(now)
@@ -154,7 +156,7 @@ export function Dashboard({ now, geo, itin, timeline, advice, online, openSettin
           Today is Day {tripPlan.todayIndex + 1} of your trip.
         </Notice>
       )}
-      {(day === 'future' || day === 'past') && tripPlan.todayIndex < 0 && (
+      {!empty && (day === 'future' || day === 'past') && tripPlan.todayIndex < 0 && (
         <Notice
           tone={day === 'future' ? 'info' : 'warn'}
           action={
@@ -167,8 +169,24 @@ export function Dashboard({ now, geo, itin, timeline, advice, online, openSettin
         </Notice>
       )}
 
+      {empty && (
+        <Card className="p-5 space-y-3">
+          <div className="text-[12px] font-bold uppercase tracking-wider text-muted">No plan yet</div>
+          <div className="text-[22px] font-bold leading-tight">Where are you heading?</div>
+          <p className="text-[15px] text-muted">
+            Tell it where you're staying and what you like: it builds the day, then guides you stop by stop. Works in Japan, Malaysia and most places with a map.
+          </p>
+          <Button variant="primary" className="w-full min-h-14 text-[17px]" onClick={planNew}>
+            <Sparkles size={20} /> Plan a trip
+          </Button>
+          <Button className="w-full" onClick={openNearby}>
+            <Compass size={18} /> Just explore what's around me
+          </Button>
+        </Card>
+      )}
+
       {/* Progress */}
-      <div>
+      {!empty && <div>
         <div className="flex justify-between text-[13px] text-muted font-medium mb-1.5">
           <span>
             {done} of {total} stops
@@ -178,9 +196,9 @@ export function Dashboard({ now, geo, itin, timeline, advice, online, openSettin
         <div className="h-2 rounded-full bg-card overflow-hidden">
           <div className="h-full bg-accent rounded-full transition-all" style={{ width: `${total ? (done / total) * 100 : 0}%` }} />
         </div>
-      </div>
+      </div>}
 
-      <Notice
+      {!empty && <Notice
         tone={advice.tone === 'ok' ? 'ok' : advice.tone === 'warn' ? 'warn' : 'bad'}
         action={
           advice.skipStopId ? (
@@ -191,7 +209,7 @@ export function Dashboard({ now, geo, itin, timeline, advice, online, openSettin
         }
       >
         {advice.message}
-      </Notice>
+      </Notice>}
 
       {/* WHERE AM I */}
       <Card className="p-4">
@@ -235,7 +253,7 @@ export function Dashboard({ now, geo, itin, timeline, advice, online, openSettin
         )}
       </Card>
 
-      {cur ? (
+      {empty ? null : cur ? (
         <>
           {/* WHERE AM I GOING */}
           <Card className="p-4">

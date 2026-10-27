@@ -246,7 +246,7 @@ export function PlanWizard({ geo, firstRun, initialHome, prefs, visited, onDone,
             <PlaceSearch geo={geo} onPick={setHome} />
             {!home && (
               <div>
-                <div className="px-1 pb-2 text-[13px] font-semibold text-muted">No hotel yet? Start from a city centre:</div>
+                <div className="px-1 pb-2 text-[13px] font-semibold text-muted">No hotel yet? Start from a city:</div>
                 <div className="grid grid-cols-2 gap-2">
                   {CITY_CENTRES.map((c, i) => (
                     <Button key={c.city} onClick={() => setHome(cityHome(i))}>
@@ -500,10 +500,10 @@ export function PlanWizard({ geo, firstRun, initialHome, prefs, visited, onDone,
             </>
           ) : (
             <>
-              <Button variant="primary" className="w-full min-h-14 text-[17px]" disabled={step === 'when' && !!timeError} onClick={next}>
-                {step === 'welcome' ? "Let's plan" : step === 'extras' ? (days > 1 ? 'Build my trip' : 'Build my day') : step === 'stay' && !home ? 'Skip for now' : 'Next'}
+              <Button variant="primary" className="w-full min-h-14 text-[17px]" disabled={(step === 'when' && !!timeError) || (step === 'stay' && !home)} onClick={next}>
+                {step === 'welcome' ? "Let's plan" : step === 'extras' ? (days > 1 ? 'Build my trip' : 'Build my day') : 'Next'}
               </Button>
-              {step === 'stay' && !home && <p className="text-center text-[13px] text-muted">No hotel yet? Pick a city above, or skip to start from central Tokyo.</p>}
+              {step === 'stay' && !home && <p className="text-center text-[13px] text-muted">Search your hotel, use your location, or pick a city.</p>}
             </>
           )}
         </div>

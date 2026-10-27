@@ -156,8 +156,8 @@ function JapanTrains() {
   const [open, setOpen] = useState<number | null>(0)
   return (
     <div className="pt-safe bottom-nav-space px-4">
-      <h1 className="pt-2 text-3xl font-bold tracking-tight">How to use Tokyo trains</h1>
-      <p className="mt-1 text-[15px] text-muted">Ten things, short and practical. The same basics work across Japan.</p>
+      <h1 className="pt-2 text-3xl font-bold tracking-tight">Trains in Japan</h1>
+      <p className="mt-1 text-[15px] text-muted">Ten things, short and practical. Written for Tokyo; the same basics work across Japan.</p>
       {!luupHere() && (
         <Notice tone="info">
           Outside the big cities (Fuji Five Lakes, Hakone, Nikkō…) trains and buses run less often, sometimes only once or twice an hour. Check the last departure

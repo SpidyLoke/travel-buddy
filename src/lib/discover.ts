@@ -1,16 +1,17 @@
 import { PLACES, registerPlace } from '../data/places'
 import type { Interest, LatLng, Place, TimeOfDay } from '../types'
 import { distanceKm } from './geo'
+import { osmThingsToDo, samePlace } from './osmPlaces'
 import { load, save } from './storage'
 
-// Things to do anywhere, found live from Wikipedia: every article with
+// Things to do anywhere, found live. Wikipedia: every article with
 // coordinates near where you're staying, kept only if its short description
-// says it's something to visit (temple, museum, park, market…). Popularity
-// comes from the article's page views. Hours are never known here, so every
-// place is labelled "check before going".
+// says it's something to visit (temple, museum, park, market…), ranked by the
+// article's page views. OpenStreetMap (osmPlaces.ts): mapped attractions and
+// shopping areas. Hours are rarely known, so places say "check before going".
 
 const WIKI = 'https://en.wikipedia.org/w/api.php'
-const KEY = 'tokyo-day:discover:v1'
+const KEY = 'tokyo-day:discover:v2'
 const TTL = 14 * 24 * 3600 * 1000
 /** How far from home places are looked for and planned. */
 export const LIVE_KM = 25
@@ -234,8 +235,10 @@ export function cachedNearby(home: LatLng): Place[] | null {
 const SAME_KM = 0.3
 
 /**
- * Things to do within ~25 km of home, best first. Cached for two weeks per
- * home; throws only when nothing could be fetched and nothing is cached.
+ * Things to do within ~25 km of home, best first: Wikipedia articles ranked by
+ * page views, OpenStreetMap attractions Wikipedia doesn't cover, and shopping
+ * areas. Cached for two weeks per home; throws only when nothing could be
+ * fetched and nothing is cached.
  */
 export async function discoverNearby(home: LatLng, opts: { inJapan: boolean; signal?: AbortSignal; fresh?: boolean }): Promise<Place[]> {
   const cache = load<CacheEntry[]>(KEY, [])
@@ -244,11 +247,14 @@ export async function discoverNearby(home: LatLng, opts: { inJapan: boolean; sig
     hit.places.forEach(registerPlace)
     return hit.places
   }
-  const results = await Promise.allSettled(searchPoints(home).map((p) => around(p, opts.signal)))
-  const pages = results.flatMap((r) => (r.status === 'fulfilled' ? r.value : []))
-  if (!pages.length) {
+  const [wikiResults, osm] = await Promise.all([
+    Promise.allSettled(searchPoints(home).map((p) => around(p, opts.signal))),
+    osmThingsToDo(home, LIVE_KM * 800, 8000, opts.signal).catch(() => null),
+  ])
+  const pages = wikiResults.flatMap((r) => (r.status === 'fulfilled' ? r.value : []))
+  if (!pages.length && !osm) {
     if (hit) return hit.places
-    throw new Error('Could not reach Wikipedia')
+    throw new Error('Could not reach Wikipedia or OpenStreetMap')
   }
   const curated = PLACES.filter((p) => !p.hidden && distanceKm(p, home) < LIVE_KM + 5)
   const curatedWiki = new Set(curated.map((p) => p.wiki))
@@ -264,12 +270,17 @@ export async function discoverNearby(home: LatLng, opts: { inJapan: boolean; sig
     if (curated.some((c) => distanceKm(c, p) < SAME_KM)) continue
     found.push(p)
   }
+  // OpenStreetMap fills the gaps: sights with no English article, and where to shop.
+  const known = [...curated, ...found]
+  const extra = (osm?.attractions ?? []).filter((p) => distanceKm(p, home) <= LIVE_KM && !known.some((k) => samePlace(k, p)))
   found.sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
-  const top = found.slice(0, 60)
+  extra.sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
+  const top = found.slice(0, 50)
   await addExtracts(top.slice(0, 40), opts.signal)
-  top.forEach(registerPlace)
-  save(KEY, [{ key: cacheKey(home), at: Date.now(), places: top }, ...cache.filter((e) => e.key !== cacheKey(home))].slice(0, 4))
-  return top
+  const all = [...top, ...extra.slice(0, 30), ...(osm?.areas ?? []).slice(0, 12)]
+  all.forEach(registerPlace)
+  save(KEY, [{ key: cacheKey(home), at: Date.now(), places: all }, ...cache.filter((e) => e.key !== cacheKey(home))].slice(0, 4))
+  return all
 }
 
 /** Curated places (Fuji, Kamakura…) within reach of a home outside the city guides. */

@@ -73,7 +73,7 @@ function Invite({ lobby, state }: { lobby: LobbyApi; state: ItineraryState }) {
               navigator
                 .share({
                   title: 'Join our trip lobby',
-                  text: `Join our trip lobby in Tokyo Day. Open the link, or if you use the app from your Home Screen, open it and tap Share → Join with invite, then paste this. Code: ${formatLobbyCode(lobby.code!)}`,
+                  text: `Join our trip lobby in Travel Buddy. Open the link, or if you use the app from your Home Screen, open it and tap Share → Join with invite, then paste this. Code: ${formatLobbyCode(lobby.code!)}`,
                   url,
                 })
                 .catch(() => {})

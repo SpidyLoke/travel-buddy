@@ -29,6 +29,7 @@ import { existingHome, homePlace, homeTrip, homeTripFromHere } from './lib/home'
 import { adviseSchedule, buildTimeline } from './lib/schedule'
 import { fmtMin, nowMinLocal, setTimeZone, todayLocal } from './lib/time'
 import { setDestination } from './lib/destination'
+import { countryOfZone, deviceTz } from './lib/locale'
 import { regionOf } from './data/regions'
 import { replanFromNow } from './lib/replan'
 import { refreshWeather } from './lib/weather'
@@ -45,9 +46,14 @@ export default function App() {
   const geo = useGeolocation()
   const itin = useItinerary()
   // Clocks, prices and transport follow wherever the active plan is.
-  setTimeZone(itin.state.tz ?? 'Asia/Tokyo')
+  // No plan yet: go by the phone's own clock and country.
+  const noPlan = !itin.state.home
+  setTimeZone(itin.state.tz ?? (noPlan ? deviceTz() : 'Asia/Tokyo'))
   const planHome = homePlace(itin.state)
-  setDestination(itin.state.country, Number.isFinite(planHome.lat) ? regionOf(planHome) : 'tokyo')
+  setDestination(
+    itin.state.country ?? (noPlan ? (countryOfZone(deviceTz()) ?? '??') : undefined),
+    noPlan ? 'live' : Number.isFinite(planHome.lat) ? regionOf(planHome) : 'tokyo',
+  )
   const online = useOnline()
   const theme = useTheme()
   const prefs = usePrefs()
@@ -174,6 +180,7 @@ export default function App() {
           openFood={setFoodFor}
           lobbyBar={<LobbyBar lobby={lobby} onOpen={() => setLobbyOpen(true)} />}
           planNew={planNew}
+          openNearby={() => setTab('nearby')}
           openJourney={() => timeline.nextIndex >= 0 && setJourneyStopId(timeline.entries[timeline.nextIndex].stop.id)}
           showOnMap={showOnMap}
           trip={hereTrip ?? trip}

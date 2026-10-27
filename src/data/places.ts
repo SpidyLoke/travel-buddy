@@ -383,7 +383,7 @@ export const PLACES: Place[] = [
     hours: 'Usually open 24 hours. Check Google Maps for tonight.',
     guideOnly: true,
     kind: 'shop',
-    notes: ['Best Donki for your day: Shinjuku is the last stop, so no extra travel and no carrying bags around.'],
+    notes: ['Handy as a last stop in Shinjuku: open late, so you are not carrying bags all day.'],
   },
   {
     id: 'donki-shibuya',
@@ -405,7 +405,7 @@ export const PLACES: Place[] = [
     hours: 'Usually open 24 hours. Check Google Maps for tonight.',
     guideOnly: true,
     kind: 'shop',
-    notes: ['Good backup if you want to shop before Shinjuku. Takes time out of your Shibuya stop.'],
+    notes: ['Biggest Donki in central Tokyo. Allow extra time if it is part of a Shibuya stop.'],
   },
 ]
 

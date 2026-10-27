@@ -1,6 +1,6 @@
 import {
   Banknote, Coffee, Crosshair, ExternalLink, Footprints, Gift, House, Landmark, LoaderCircle, Lock, MapPin, Pill, Plus, Search,
-  Moon, Salad, ShoppingBag, Soup, Store, Toilet, TrainFront, Utensils, X,
+  Moon, Salad, ShoppingBag, Soup, Store, Toilet, TrainFront, Utensils, X, Shirt,
 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { placeLabel } from '../data/places'
@@ -8,7 +8,8 @@ import type { Geo } from '../hooks/useGeolocation'
 import type { ItineraryApi } from '../hooks/useItinerary'
 import { formatDistance } from '../lib/geo'
 import { directionsUrl } from '../lib/maps'
-import { CATEGORIES, findNearby, searchPlaces, type CategoryId, type NearbyResult } from '../lib/nearby'
+import { categoriesFor, findNearby, searchPlaces, type CategoryId, type NearbyResult } from '../lib/nearby'
+import { curatedCity, inJapan } from '../lib/destination'
 import { luupCost } from '../lib/pricing'
 import type { Timeline } from '../lib/schedule'
 import { load, save } from '../lib/storage'
@@ -17,7 +18,8 @@ import { CopyJaButton } from './CopyJaButton'
 import { Button, Card, LinkButton, Notice } from './ui'
 
 const ICONS: Record<CategoryId, typeof Store> = {
-  landmarks: Landmark,
+  todo: Landmark,
+  shopping: Shirt,
   donki: ShoppingBag,
   konbini: Store,
   food: Utensils,
@@ -51,7 +53,11 @@ export function NearbyView({ geo, timeline, itin, online, showOnMap }: Props) {
   const next = timeline.nextIndex >= 0 ? timeline.entries[timeline.nextIndex].place : null
   const [around, setAround] = useState<'me' | 'next'>(gps ? 'me' : 'next')
   const centre: LatLng | null = around === 'me' ? gps : next
-  const [cat, setCat] = useState<CategoryId>(() => load<CategoryId>(CAT_KEY, 'landmarks'))
+  const categories = categoriesFor(inJapan())
+  // Saved choice may be from an older version or another country: fall back to "Things to do".
+  const [savedCat, setCat] = useState<CategoryId>(() => load<CategoryId>(CAT_KEY, 'todo'))
+  const cat = categories.some((c) => c.id === savedCat) ? savedCat : 'todo'
+  const [radiusM, setRadiusM] = useState(0)
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<NearbyResult[]>([])
   const [status, setStatus] = useState<Status>({ state: 'idle' })
@@ -75,10 +81,13 @@ export function NearbyView({ geo, timeline, itin, online, showOnMap }: Props) {
     const t = setTimeout(
       () => {
         setStatus({ state: 'loading' })
-        const job = searching ? searchPlaces(query.trim(), centre, ctrl.signal) : findNearby(CATEGORIES.find((c) => c.id === cat)!, centre!, ctrl.signal)
+        const job = searching
+          ? searchPlaces(query.trim(), centre, ctrl.signal).then((results) => ({ results, radiusM: 0 }))
+          : findNearby(categories.find((c) => c.id === cat)!, centre!, ctrl.signal)
         job
           .then((r) => {
-            setResults(r)
+            setResults(r.results)
+            setRadiusM(r.radiusM)
             setStatus({ state: 'done' })
           })
           .catch(() => {
@@ -94,7 +103,7 @@ export function NearbyView({ geo, timeline, itin, online, showOnMap }: Props) {
     // `centre` is tracked through centreKey so GPS jitter does not refetch.
   }, [cat, query, searching, centreKey, online, retry])
 
-  const category = CATEGORIES.find((c) => c.id === cat)!
+  const category = categories.find((c) => c.id === cat)!
   const inPlan = new Set(itin.state.stops.map((s) => s.placeId))
   const googleFallback = `https://www.google.com/maps/search/?${new URLSearchParams({ api: '1', query: searching ? query : category.label })}`
 
@@ -139,7 +148,7 @@ export function NearbyView({ geo, timeline, itin, online, showOnMap }: Props) {
       {!searching && (
         <div className="-mx-4 mt-3 overflow-x-auto px-4 [scrollbar-width:none]">
           <div className="flex gap-2 w-max">
-            {CATEGORIES.map((c) => {
+            {categories.map((c) => {
               const Icon = ICONS[c.id]
               return (
                 <button
@@ -163,7 +172,12 @@ export function NearbyView({ geo, timeline, itin, online, showOnMap }: Props) {
         {online && !searching && !centre && (
           <Notice tone="info">Turn on location, or pick your next stop above, to see what is around.</Notice>
         )}
-        {!searching && category.note && status.state === 'done' && <p className="px-1 text-[13px] text-muted">{category.note}</p>}
+        {!searching && status.state === 'done' && (category.note || radiusM > category.radiusM) && (
+          <p className="px-1 text-[13px] text-muted">
+            {radiusM > category.radiusM && `Not much close by, so this looks up to ${formatDistance(radiusM / 1000)} away. `}
+            {category.note}
+          </p>
+        )}
         {status.state === 'loading' && (
           <div className="flex items-center justify-center gap-2 py-8 text-muted">
             <LoaderCircle size={18} className="animate-spin" /> Looking…
@@ -182,7 +196,7 @@ export function NearbyView({ geo, timeline, itin, online, showOnMap }: Props) {
           </Notice>
         )}
         {status.state === 'done' && results.length === 0 && (
-          <Notice tone="info">Nothing found{searching ? '' : ` within ${formatDistance(category.radiusM / 1000)}`}. OpenStreetMap may not list it.</Notice>
+          <Notice tone="info">Nothing found{searching ? '' : ` within ${formatDistance((radiusM || category.radiusM) / 1000)}`}. OpenStreetMap may not list it.</Notice>
         )}
         {status.state === 'done' &&
           results.map((r) => (
@@ -242,7 +256,7 @@ function ResultCard({ r, gps, inPlan, onAdd, onHome, onMap }: ResultProps) {
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="text-[17px] font-bold leading-tight">{place.name}</div>
-            {place.nameJa !== place.name && <div className="text-[14px] text-muted">{place.nameJa}</div>}
+            {place.nameJa && place.nameJa !== place.name && <div className="text-[14px] text-muted">{place.nameJa}</div>}
           </div>
           <div className="text-right shrink-0">
             <div className="text-[15px] font-bold tabular-nums">{formatDistance(r.km)}</div>
@@ -256,7 +270,7 @@ function ResultCard({ r, gps, inPlan, onAdd, onHome, onMap }: ResultProps) {
           <Footprints size={16} /> Walk
         </LinkButton>
         <LinkButton variant={r.km >= 1.5 ? 'primary' : 'secondary'} className="px-2 text-[14px]" href={directionsUrl(place, 'transit', gps)}>
-          <TrainFront size={16} /> Train
+          <TrainFront size={16} /> {curatedCity() ? 'Train' : 'Transit'}
         </LinkButton>
         <Button className="px-2 text-[14px]" onClick={onAdd} disabled={inPlan}>
           <Plus size={16} /> {inPlan ? 'In day' : 'Add'}
@@ -264,6 +278,16 @@ function ResultCard({ r, gps, inPlan, onAdd, onHome, onMap }: ResultProps) {
       </div>
       {more && (
         <div className="space-y-2">
+          {place.area === 'Shopping area' && place.activities.length > 0 && (
+            <ul className="text-[13px] space-y-0.5">
+              {place.activities.map((a) => (
+                <li key={a} className="flex gap-2">
+                  <span className="text-accent">•</span>
+                  {a}
+                </li>
+              ))}
+            </ul>
+          )}
           {r.km > 1 && r.km < 5 && luupCost(luupMin) != null && (
             <p className="text-[13px] text-muted">
               LUUP: about {luupMin} min, ~¥{luupCost(luupMin)} on your plan. Find ports in the LUUP app.
@@ -288,7 +312,7 @@ function ResultCard({ r, gps, inPlan, onAdd, onHome, onMap }: ResultProps) {
       )}
       {!more && (
         <button className="text-[13px] font-semibold text-accent" onClick={() => setMore(true)}>
-          More: map, set as home, copy Japanese name
+          {place.area === 'Shopping area' ? 'Shops here, map, set as home' : 'More: map, set as home'}
         </button>
       )}
     </Card>

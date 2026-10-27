@@ -1,30 +1,14 @@
-import type { HomeSetting, ItineraryState, ItineraryStop, TransportMode } from '../types'
+import type { HomeSetting, ItineraryState } from '../types'
 
-export const DEFAULT_HOME: HomeSetting = { name: 'Horikiri Station', query: 'Horikiri Station, Adachi, Tokyo', placeId: 'horikiri' }
+/** Placeholder until the first plan sets where you're staying. */
+export const DEFAULT_HOME: HomeSetting = { name: 'Your stay', query: 'Tokyo Station', placeId: 'tokyostation' }
 
-const stop = (placeId: string, durationMin: number, transport: TransportMode): ItineraryStop => ({
-  id: placeId,
-  placeId,
-  durationMin,
-  transport,
-  status: 'pending',
-})
-
-// Transport follows each leg's recommendation. Reproduces the planned day: 11:00 start at Horikiri, finish 22:30 in Shinjuku.
+// No plan yet: the setup wizard runs first, and Home shows "Plan a trip"
+// whenever a plan has no stops.
 export const DEFAULT_ITINERARY: ItineraryState = {
   version: 1,
-  startPlaceId: 'horikiri',
-  startMin: 11 * 60,
-  endMin: 22 * 60 + 30,
-  home: DEFAULT_HOME,
-  stops: [
-    stop('skytree', 20, 'train'),
-    stop('sensoji', 75, 'luup'),
-    stop('akihabara', 60, 'train'),
-    stop('ginza', 45, 'train'),
-    stop('tokyotower', 75, 'luup'),
-    stop('takeshita', 60, 'train'),
-    stop('shibuya', 90, 'walk'),
-    stop('shinjuku', 120, 'train'),
-  ],
+  startPlaceId: 'tokyostation',
+  startMin: 10 * 60,
+  endMin: 21 * 60,
+  stops: [],
 }

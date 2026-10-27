@@ -47,7 +47,7 @@ export function buildIcs(days: ItineraryState[]): string {
   const lines = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
-    'PRODID:-//Tokyo Day//Travel companion//EN',
+    'PRODID:-//Travel Buddy//Travel companion//EN',
     'CALSCALE:GREGORIAN',
   ]
   const now = new Date().toISOString().replace(/[-:]/g, '').slice(0, 15) + 'Z'
@@ -63,7 +63,7 @@ export function buildIcs(days: ItineraryState[]): string {
         const name = placeLabel(e.place)
         lines.push(
           'BEGIN:VEVENT',
-          `UID:${date}-${e.stop.id}@tokyo-day`,
+          `UID:${date}-${e.stop.id}@travel-buddy`,
           `DTSTAMP:${now}`,
           `DTSTART:${stamp(date, e.plannedArrive, tz)}`,
           `DTEND:${stamp(date, e.plannedDepart, tz)}`,
@@ -85,7 +85,7 @@ export function buildIcs(days: ItineraryState[]): string {
 }
 
 /** Opens the .ics; iPhone offers "Add All" to Calendar. */
-export function downloadIcs(days: ItineraryState[], filename = 'tokyo-day.ics'): void {
+export function downloadIcs(days: ItineraryState[], filename = 'travel-buddy.ics'): void {
   const blob = new Blob([buildIcs(days)], { type: 'text/calendar;charset=utf-8' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')

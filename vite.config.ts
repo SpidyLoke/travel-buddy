@@ -16,9 +16,9 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['icon.svg', 'apple-touch-icon.png'],
       manifest: {
-        name: 'Tokyo Travel Companion',
-        short_name: 'Tokyo Day',
-        description: 'Step-by-step trains, LUUP and walking for a day in Tokyo.',
+        name: 'Travel Buddy',
+        short_name: 'Travel Buddy',
+        description: 'Plans your days away around what you like, then gets you there: Japan, Malaysia and anywhere else.',
         theme_color: '#0a84ff',
         background_color: '#0b0b0f',
         display: 'standalone',

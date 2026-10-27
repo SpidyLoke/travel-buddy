@@ -105,7 +105,10 @@ export const COUNTRY_NAME: Record<string, string> = {
 
 export const currencyOf = (country: string | undefined): string => COUNTRY_CURRENCY[country ?? 'JP'] ?? 'USD'
 
-const deviceTz = (): string => {
+/** Best guess of the country from a time zone (e.g. the phone's own, before any plan exists). */
+export const countryOfZone = (tz: string): string | undefined => Object.entries(COUNTRY_TZ).find(([, z]) => z === tz)?.[0]
+
+export const deviceTz = (): string => {
   try {
     return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
   } catch {

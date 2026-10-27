@@ -20,7 +20,7 @@ function sanitise(s: ItineraryState): ItineraryState {
 
 /**
  * Where a new stop adds the least straight-line detour: after anything
- * already visited and before the final stop, so Shinjuku stays the finish.
+ * already visited and before the final stop, so the planned finish stays last.
  */
 function bestInsertIndex(s: ItineraryState, place: Place): number {
   const at = (i: number) => (i < 0 ? PLACE_BY_ID[s.startPlaceId] : PLACE_BY_ID[s.stops[i].placeId])

@@ -27,6 +27,8 @@ export function homePlace(state: ItineraryState): Place {
 
 /** Current home as a starting point for a new plan, if it has a location. */
 export function existingHome(state: ItineraryState): Place | null {
+  // No stay set yet (fresh start): the placeholder isn't anyone's home.
+  if (!state.home) return null
   const h = homePlace(state)
   return hasCoords(h) ? { ...h, label: undefined } : null
 }
