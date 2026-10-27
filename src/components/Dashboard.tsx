@@ -10,11 +10,11 @@ import { directionsUrl, modeToGoogle } from '../lib/maps'
 import type { TripApi } from '../hooks/useTrip'
 import type { HomeTrip } from '../lib/home'
 import { reverseGeocode } from '../lib/nearby'
-import { inHome } from '../lib/fx'
+import { currencySymbol, inHome, localCurrency } from '../lib/fx'
 import { costFor, recommend } from '../lib/pricing'
 import { load, save } from '../lib/storage'
 import type { Advice, Timeline } from '../lib/schedule'
-import { dateLabel, fmtDuration, fmtMin, jstClock, jstDateLabel, nowMinJst, planDayStatus, todayJst } from '../lib/time'
+import { dateLabel, fmtDuration, fmtMin, localClock, localDateLabel, nowMinLocal, planDayStatus, todayLocal, zoneLabel } from '../lib/time'
 import type { LatLng, Place } from '../types'
 import { buildTrainSteps, LineSummary, MODE_META } from './Journey'
 import { DonkiCard } from './Donki'
@@ -54,9 +54,9 @@ export function Dashboard({ now, geo, itin, timeline, advice, online, openSettin
   const done = timeline.entries.filter((e) => e.stop.status === 'done').length
   const pos = geo.position
 
-  const street = useStreetName(geo.status === 'active' && !geo.outsideJapan ? pos : null, online)
+  const street = useStreetName(geo.status === 'active' ? pos : null, online)
   const nearest = pos
-    ? PLACES.filter((p) => !p.hidden).map((p) => ({ p, d: distanceKm(pos, p) })).sort((a, b) => a.d - b.d)[0]
+    ? [...PLACES, ...(itin.state.customPlaces ?? [])].filter((p) => !p.hidden).map((p) => ({ p, d: distanceKm(pos, p) })).filter((x) => x.d < 30).sort((a, b) => a.d - b.d)[0]
     : null
   const distToNext = pos && cur ? distanceKm(pos, cur.place) : null
   const arrived = distToNext != null && distToNext < ARRIVED_KM
@@ -64,7 +64,7 @@ export function Dashboard({ now, geo, itin, timeline, advice, online, openSettin
   const mode = cur?.stop.transport ?? 'train'
   const ModeIcon = MODE_META[mode].Icon
   // GPS says you are nowhere near where this leg starts (e.g. you went off-plan).
-  const livePos = geo.status === 'active' && !geo.outsideJapan ? pos : null
+  const livePos = geo.status === 'active' ? pos : null
   const boardAt = leg?.segments[0].from
   const offRoute = !!(livePos && cur && !arrived && distanceKm(livePos, cur.prev) > OFF_ROUTE_KM && (!boardAt || distanceKm(livePos, boardAt) > OFF_ROUTE_KM))
   const firstStep = offRoute
@@ -75,7 +75,7 @@ export function Dashboard({ now, geo, itin, timeline, advice, online, openSettin
   const day = planDayStatus(itin.state.date, now)
   const prefs = getPrefs()
   // From an hour before a meal until an hour after, on the day itself.
-  const nowMin = nowMinJst(now)
+  const nowMin = nowMinLocal(now)
   // What to do about time right now, worked out from the current time and position.
   const onDay = day === 'today' || day === 'undated'
   const guidance = ((): { tone: 'plain' | 'warn' | 'bad'; text: string } | null => {
@@ -117,9 +117,9 @@ export function Dashboard({ now, geo, itin, timeline, advice, online, openSettin
       <header className="flex items-end justify-between pt-2">
         <div>
           <div className="text-[13px] font-semibold text-muted">
-            {jstDateLabel(now)} · Japan time <WeatherBadge date={todayJst(now)} />
+            {localDateLabel(now)} · {zoneLabel()} <WeatherBadge date={todayLocal(now)} />
           </div>
-          <div className="text-4xl font-bold tracking-tight tabular-nums">{jstClock(now)}</div>
+          <div className="text-4xl font-bold tracking-tight tabular-nums">{localClock(now)}</div>
         </div>
         <div className="flex items-center gap-2">
           {!online && (
@@ -131,7 +131,7 @@ export function Dashboard({ now, geo, itin, timeline, advice, online, openSettin
             <Home size={18} />
           </button>
           <button aria-label="Currency converter" onClick={openConverter} className="size-10 grid place-items-center rounded-full bg-card">
-            <JapaneseYen size={18} />
+            {localCurrency() === 'JPY' ? <JapaneseYen size={18} /> : <span className="text-[13px] font-bold">{currencySymbol(localCurrency())}</span>}
           </button>
           <button aria-label="Settings" onClick={openSettings} className="size-10 grid place-items-center rounded-full bg-card">
             <Settings size={18} />
@@ -196,13 +196,13 @@ export function Dashboard({ now, geo, itin, timeline, advice, online, openSettin
       {/* WHERE AM I */}
       <Card className="p-4">
         <Label>Where am I?</Label>
-        {pos && nearest ? (
+        {pos ? (
           <div className="mt-1">
             <div className="text-[22px] font-bold leading-tight">
-              {nearest.d < 0.5 ? `At ${nearest.p.name}` : (street ?? `${formatDistance(nearest.d)} from ${placeLabel(nearest.p)}`)}
+              {nearest && nearest.d < 0.5 ? `At ${nearest.p.name}` : (street ?? (nearest ? `${formatDistance(nearest.d)} from ${placeLabel(nearest.p)}` : `${pos.lat.toFixed(4)}, ${pos.lng.toFixed(4)}`))}
             </div>
-            {street && nearest.d < 0.5 && <div className="text-[14px] text-muted">{street}</div>}
-            {street && nearest.d >= 0.5 && (
+            {street && nearest && nearest.d < 0.5 && <div className="text-[14px] text-muted">{street}</div>}
+            {street && nearest && nearest.d >= 0.5 && (
               <div className="text-[14px] text-muted">
                 {formatDistance(nearest.d)} from {placeLabel(nearest.p)}
               </div>
@@ -221,7 +221,6 @@ export function Dashboard({ now, geo, itin, timeline, advice, online, openSettin
                 {geo.status === 'paused' ? 'Resume GPS' : 'Stop GPS'}
               </button>
             </div>
-            {geo.outsideJapan && <div className="mt-2"><Notice tone="warn">You appear to be outside Japan, so live location is ignored. Distances will look large.</Notice></div>}
           </div>
         ) : (
           <div className="mt-2 space-y-2">
@@ -246,8 +245,8 @@ export function Dashboard({ now, geo, itin, timeline, advice, online, openSettin
                 <Label>{arrived ? 'You have arrived' : 'Where am I going?'}</Label>
                 <div className="mt-1 text-[28px] font-bold leading-tight">{placeLabel(cur.place)}</div>
                 <div className="text-[15px] text-muted">
-                  {cur.place.name !== placeLabel(cur.place) && `${cur.place.name} · `}
-                  {cur.place.nameJa}
+                  {cur.place.name !== placeLabel(cur.place) && `${cur.place.name}${cur.place.nameJa && cur.place.nameJa !== cur.place.name ? ' · ' : ''}`}
+                  {cur.place.nameJa !== cur.place.name && cur.place.nameJa}
                 </div>
               </div>
               <div className="text-right shrink-0">
@@ -267,7 +266,7 @@ export function Dashboard({ now, geo, itin, timeline, advice, online, openSettin
               </Button>
             )}
             <div className="mt-2 empty:hidden">
-              <RainWarning place={cur.place} date={itin.state.date ?? todayJst()} atMin={cur.projectedArrive} />
+              <RainWarning place={cur.place} date={itin.state.date ?? todayLocal()} atMin={cur.projectedArrive} />
             </div>
             {arrived && <p className="mt-2 text-[15px]">Enjoy it. Tap <b>Visited</b> when you leave and the next stop loads.</p>}
           </Card>
@@ -337,7 +336,7 @@ export function Dashboard({ now, geo, itin, timeline, advice, online, openSettin
           )}
 
           <div className="grid grid-cols-1 gap-2">
-            <LinkButton variant={mode === 'luup' ? 'luup' : 'primary'} className="min-h-14 text-[18px]" href={directionsUrl(cur.place, modeToGoogle[mode], geo.status === 'active' && !geo.outsideJapan ? pos : undefined)}>
+            <LinkButton variant={mode === 'luup' ? 'luup' : 'primary'} className="min-h-14 text-[18px]" href={directionsUrl(cur.place, modeToGoogle[mode], geo.status === 'active' ? pos : undefined)}>
               <Navigation size={20} /> Navigate
             </LinkButton>
             <Button variant="secondary" className="min-h-13" onClick={openJourney}>

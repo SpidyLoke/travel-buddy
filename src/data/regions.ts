@@ -20,15 +20,20 @@ export const DAY_TRIPS: DayTrip[] = [
   { id: 'nara', name: 'Nara', from: 'kansai', blurb: 'Free-roaming deer, Tōdai-ji Great Buddha · about 45 min from Kyoto or Osaka' },
 ]
 
-export const CITY_CENTRES: { region: Region; city: string; centre: LatLng; homeName: string; mapsQuery: string }[] = [
-  { region: 'tokyo', city: 'Tokyo', centre: { lat: 35.6812, lng: 139.7671 }, homeName: 'Central Tokyo (Tokyo Station)', mapsQuery: 'Tokyo Station' },
-  { region: 'kansai', city: 'Kyoto', centre: { lat: 34.9858, lng: 135.7588 }, homeName: 'Central Kyoto (Kyoto Station)', mapsQuery: 'Kyoto Station' },
-  { region: 'kansai', city: 'Osaka', centre: { lat: 34.6659, lng: 135.5013 }, homeName: 'Central Osaka (Namba)', mapsQuery: 'Namba Station, Osaka' },
+export const CITY_CENTRES: { region: Region; city: string; country: string; centre: LatLng; homeName: string; mapsQuery: string }[] = [
+  { region: 'tokyo', city: 'Tokyo', country: 'JP', centre: { lat: 35.6812, lng: 139.7671 }, homeName: 'Central Tokyo (Tokyo Station)', mapsQuery: 'Tokyo Station' },
+  { region: 'kansai', city: 'Kyoto', country: 'JP', centre: { lat: 34.9858, lng: 135.7588 }, homeName: 'Central Kyoto (Kyoto Station)', mapsQuery: 'Kyoto Station' },
+  { region: 'kansai', city: 'Osaka', country: 'JP', centre: { lat: 34.6659, lng: 135.5013 }, homeName: 'Central Osaka (Namba)', mapsQuery: 'Namba Station, Osaka' },
+  { region: 'live', city: 'Fuji', country: 'JP', centre: { lat: 35.4985, lng: 138.7686 }, homeName: 'Kawaguchiko Station (Fuji)', mapsQuery: 'Kawaguchiko Station' },
+  { region: 'live', city: 'Kuala Lumpur', country: 'MY', centre: { lat: 3.1466, lng: 101.7113 }, homeName: 'Bukit Bintang, Kuala Lumpur', mapsQuery: 'Bukit Bintang, Kuala Lumpur' },
 ]
 
-/** Kansai if you're staying within ~70 km of Kyoto or Osaka, otherwise Tokyo. */
+const CITY_KM: Record<string, number> = { Tokyo: 35, Kyoto: 40, Osaka: 40 }
+
+/** The built-in city guide you're staying in, or 'live' anywhere else (Fuji, Kuala Lumpur…). */
 export function regionOf(p: LatLng): Region {
-  return CITY_CENTRES.some((c) => c.region === 'kansai' && distanceKm(p, c.centre) < 70) ? 'kansai' : 'tokyo'
+  const c = CITY_CENTRES.find((c) => c.region !== 'live' && distanceKm(p, c.centre) < (CITY_KM[c.city] ?? 0))
+  return c?.region ?? 'live'
 }
 
 const K = (p: Parameters<typeof P>[0]): Place => P({ region: 'kansai', ...p })

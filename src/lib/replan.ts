@@ -4,7 +4,7 @@ import { homePlace, hasCoords } from './home'
 import { planDay } from './planner'
 import { getPrefs } from './prefs'
 import { herePlace } from './schedule'
-import { todayJst } from './time'
+import { todayLocal } from './time'
 
 // "Re-plan the rest of today from here": reorders the stops you haven't
 // visited for a start from your position at the current time, keeps your
@@ -36,7 +36,7 @@ export function replanFromNow(state: ItineraryState, now: number, here: LatLng |
     planDay({
     home: hasCoords(home) ? home : from,
     startFrom: from,
-    date: state.date ?? todayJst(),
+    date: state.date ?? todayLocal(),
     startMin: now,
     // Keep the planned finish, but always allow at least an hour from now.
     endMin: Math.max(state.endMin, now + 60),

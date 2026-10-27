@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { placeLabel } from '../data/places'
 import type { Timeline } from '../lib/schedule'
-import { nowMinJst, planDayStatus } from '../lib/time'
+import { nowMinLocal, planDayStatus } from '../lib/time'
 
 // Best-effort "time to leave" notifications. Timers only run while the app is
 // open (or briefly in the background); iPhone allows web notifications only
@@ -40,7 +40,7 @@ export function useReminders(tl: Timeline, date: string | undefined, enabled: bo
     if (!enabled || !('Notification' in window) || Notification.permission !== 'granted') return
     const day = planDayStatus(date)
     if (day !== 'today' && day !== 'undated') return
-    const now = nowMinJst()
+    const now = nowMinLocal()
     const timers = tl.entries
       .filter((e) => e.stop.status === 'pending')
       .map((e) => {

@@ -1,4 +1,5 @@
 import { Check, Clock, Footprints, MapPin, Plus, TrainFront } from 'lucide-react'
+import { curatedCity } from '../lib/destination'
 import { distanceKm, formatDistance } from '../lib/geo'
 import { directionsUrl } from '../lib/maps'
 import { fmtDuration } from '../lib/time'
@@ -22,7 +23,7 @@ export function PlaceCard({ place, gps, inPlan, onAdd, onMap }: Props) {
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="text-[19px] font-bold leading-tight">{place.name}</div>
-          <div className="text-[15px] text-muted">{place.nameJa}</div>
+          {place.nameJa && place.nameJa !== place.name && <div className="text-[15px] text-muted">{place.nameJa}</div>}
         </div>
         <Pill className="bg-card-2 shrink-0">{place.area}</Pill>
       </div>
@@ -39,12 +40,18 @@ export function PlaceCard({ place, gps, inPlan, onAdd, onMap }: Props) {
         <Pill className="bg-card-2">
           <Clock size={13} /> {fmtDuration(place.suggestedMin)}
         </Pill>
-        <Pill className="bg-card-2">
-          <TrainFront size={13} /> {place.nearestStation}
-        </Pill>
+        {place.nearestStation && (
+          <Pill className="bg-card-2">
+            <TrainFront size={13} /> {place.nearestStation}
+          </Pill>
+        )}
         {gps && <Pill className="bg-card-2">{formatDistance(distanceKm(gps, place))} away</Pill>}
       </div>
-      {place.hours && <p className="text-[13px] text-muted">Typical hours: {place.hours} Check before going.</p>}
+      {place.hours ? (
+        <p className="text-[13px] text-muted">Typical hours: {place.hours} Check before going.</p>
+      ) : (
+        place.region === 'live' && <p className="text-[13px] text-muted">Opening hours not known here: check before going.</p>
+      )}
       {place.notes?.map((n) => (
         <p key={n} className="text-[13px] text-muted">
           {n}
@@ -52,7 +59,7 @@ export function PlaceCard({ place, gps, inPlan, onAdd, onMap }: Props) {
       ))}
       <div className="grid grid-cols-2 gap-2">
         <LinkButton variant="primary" className="text-[14px]" href={directionsUrl(place, 'transit', gps)}>
-          <TrainFront size={16} /> By train
+          <TrainFront size={16} /> {curatedCity() ? 'By train' : 'Transit'}
         </LinkButton>
         <LinkButton className="text-[14px]" href={directionsUrl(place, 'walking', gps)}>
           <Footprints size={16} /> Walking

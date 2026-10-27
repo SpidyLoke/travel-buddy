@@ -2,7 +2,7 @@ import { placeLabel } from '../data/places'
 import type { ItineraryState } from '../types'
 import { directionsUrl, modeToGoogle } from './maps'
 import { buildTimeline } from './schedule'
-import { todayJst } from './time'
+import { getTimeZone, todayLocal, zoneOffsetMin } from './time'
 
 // iCalendar export: one event per stop with an alert 10 minutes before you
 // need to leave for it. Calendar alerts fire even when this web app is
@@ -12,11 +12,17 @@ const ALERT_MIN = 10
 
 const pad = (n: number) => String(n).padStart(2, '0')
 
-/** "20261114T103000" in Japan time (floats past midnight into the next day). */
-function stamp(ymd: string, min: number): string {
-  const d = new Date(`${ymd}T00:00:00Z`)
-  d.setUTCMinutes(d.getUTCMinutes() + Math.round(min))
-  return `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}T${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}00`
+/**
+ * "20261114T013000Z": a destination wall-clock time as UTC, so calendars show
+ * it correctly in any time zone (and past midnight rolls into the next day).
+ */
+function stamp(ymd: string, min: number, tz: string): string {
+  const wall = Date.parse(`${ymd}T00:00:00Z`) + Math.round(min) * 60000
+  // Offset at the right instant (checked twice so a DST change on the day is handled).
+  let utc = wall - zoneOffsetMin(tz, new Date(wall)) * 60000
+  utc = wall - zoneOffsetMin(tz, new Date(utc)) * 60000
+  const d = new Date(utc)
+  return `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}T${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}00Z`
 }
 
 const esc = (s: string) => s.replace(/\\/g, '\\\\').replace(/;/g, '\;').replace(/,/g, '\\,').replace(/\n/g, '\\n')
@@ -43,19 +49,11 @@ export function buildIcs(days: ItineraryState[]): string {
     'VERSION:2.0',
     'PRODID:-//Tokyo Day//Travel companion//EN',
     'CALSCALE:GREGORIAN',
-    'BEGIN:VTIMEZONE',
-    'TZID:Asia/Tokyo',
-    'BEGIN:STANDARD',
-    'DTSTART:19700101T000000',
-    'TZOFFSETFROM:+0900',
-    'TZOFFSETTO:+0900',
-    'TZNAME:JST',
-    'END:STANDARD',
-    'END:VTIMEZONE',
   ]
   const now = new Date().toISOString().replace(/[-:]/g, '').slice(0, 15) + 'Z'
   for (const day of days) {
-    const date = day.date ?? todayJst()
+    const date = day.date ?? todayLocal()
+    const tz = day.tz ?? getTimeZone()
     // Plan as written (not projected from the current clock).
     const tl = buildTimeline(day, 0)
     tl.entries
@@ -67,10 +65,10 @@ export function buildIcs(days: ItineraryState[]): string {
           'BEGIN:VEVENT',
           `UID:${date}-${e.stop.id}@tokyo-day`,
           `DTSTAMP:${now}`,
-          `DTSTART;TZID=Asia/Tokyo:${stamp(date, e.plannedArrive)}`,
-          `DTEND;TZID=Asia/Tokyo:${stamp(date, e.plannedDepart)}`,
+          `DTSTART:${stamp(date, e.plannedArrive, tz)}`,
+          `DTEND:${stamp(date, e.plannedDepart, tz)}`,
           fold(`SUMMARY:${esc(name)}`),
-          fold(`LOCATION:${esc(`${e.place.name}, ${e.place.nameJa}`)}`),
+          fold(`LOCATION:${esc([e.place.name, e.place.nameJa].filter((v, i, a) => v && a.indexOf(v) === i).join(', '))}`),
           fold(`DESCRIPTION:${esc(`Leave ${placeLabel(e.prev)} by about ${pad(Math.floor(leave / 60) % 24)}:${pad(leave % 60)} (${e.stop.transport}).\nDirections: ${directionsUrl(e.place, modeToGoogle[e.stop.transport])}`)}`),
           'BEGIN:VALARM',
           'ACTION:DISPLAY',

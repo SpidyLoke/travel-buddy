@@ -1,9 +1,9 @@
 import type { LatLng } from '../types'
 import { load, save } from './storage'
 import { addDays } from './planner'
-import { todayJst } from './time'
+import { getTimeZone, todayLocal } from './time'
 
-// Forecasts from Open-Meteo (free, no key, CORS-enabled), in Japan time.
+// Forecasts from Open-Meteo (free, no key, CORS-enabled), in destination time.
 // Up to 16 days ahead; saved for an hour so it also shows offline.
 
 export interface DayWeather {
@@ -35,20 +35,21 @@ let current: Forecast | null = load<Forecast | null>(KEY, null)
 export const getForecast = (): Forecast | null => current
 
 export async function refreshWeather(at: LatLng, dates: string[], signal?: AbortSignal): Promise<Forecast | null> {
-  const today = todayJst()
+  const today = todayLocal()
   const last = addDays(today, FORECAST_DAYS - 1)
   const wanted = dates.filter((d) => d >= today && d <= last).sort()
   if (!wanted.length) return current
   const start = wanted[0]
   const end = wanted.at(-1)!
-  const key = `${at.lat.toFixed(2)},${at.lng.toFixed(2)},${start},${end}`
+  const tz = getTimeZone()
+  const key = `${at.lat.toFixed(2)},${at.lng.toFixed(2)},${start},${end},${tz}`
   if (current?.key === key && Date.now() - current.fetchedAt < TTL) return current
   const params = new URLSearchParams({
     latitude: at.lat.toFixed(3),
     longitude: at.lng.toFixed(3),
     hourly: 'precipitation_probability,weather_code,temperature_2m',
     daily: 'weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max',
-    timezone: 'Asia/Tokyo',
+    timezone: tz,
     start_date: start,
     end_date: end,
   })
@@ -93,7 +94,7 @@ export function describeWeather(code: number): { icon: string; label: string } {
 
 export const dayWeather = (date: string | undefined): DayWeather | null => (date && current?.daily[date]) || null
 
-/** Hourly forecast at a time of day on a date (minutes after midnight, JST). */
+/** Hourly forecast at a time of day on a date (minutes after midnight, destination time). */
 export function weatherAt(date: string | undefined, min: number): HourWeather | null {
   if (!date || !current) return null
   const h = Math.min(23, Math.max(0, Math.floor(min / 60)))

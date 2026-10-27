@@ -1,5 +1,7 @@
 import { Bike, ExternalLink, TriangleAlert } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
+import { destCountry, inJapan, luupHere } from '../lib/destination'
+import { COUNTRY_NAME } from '../lib/locale'
 import { LUUP_URL } from '../lib/maps'
 import { Card, LinkButton, Notice, SectionTitle } from './ui'
 
@@ -146,11 +148,22 @@ const SIGNS: [string, string, string][] = [
 ]
 
 export function TrainGuide() {
+  if (!inJapan()) return <GettingAround />
+  return <JapanTrains />
+}
+
+function JapanTrains() {
   const [open, setOpen] = useState<number | null>(0)
   return (
     <div className="pt-safe bottom-nav-space px-4">
       <h1 className="pt-2 text-3xl font-bold tracking-tight">How to use Tokyo trains</h1>
       <p className="mt-1 text-[15px] text-muted">Ten things, short and practical. The same basics work across Japan.</p>
+      {!luupHere() && (
+        <Notice tone="info">
+          Outside the big cities (Fuji Five Lakes, Hakone, Nikkō…) trains and buses run less often, sometimes only once or twice an hour. Check the last departure
+          back before you set off, and carry some cash: Suica works on most routes but not every local bus. Taxis wait at main stations.
+        </Notice>
+      )}
       <Notice tone="info">
         Kyoto, Osaka and Nara: your Suica or PASMO works on trains, subways and most buses there too (the local card is ICOCA; they are interchangeable). Kyoto
         sights are often easier by bus: board through the rear door and tap your card at the front, by the driver, when you get off.
@@ -195,7 +208,112 @@ export function TrainGuide() {
         </ul>
       </Card>
 
-      <LuupGuide />
+      {luupHere() && <LuupGuide />}
+    </div>
+  )
+}
+
+interface CountryGuide {
+  title: string
+  cards: { title: string; body: ReactNode }[]
+}
+
+const COUNTRY_GUIDES: Record<string, CountryGuide> = {
+  MY: {
+    title: 'Getting around Malaysia',
+    cards: [
+      {
+        title: 'Trains in Kuala Lumpur',
+        body: (
+          <ul className="list-disc pl-5 space-y-1">
+            <li><b>LRT, MRT and Monorail</b> (Rapid KL) cover the city; <b>KTM Komuter</b> runs to the suburbs; <b>KLIA Ekspres / Transit</b> to the airport.</li>
+            <li>Lines meet at <b>KL Sentral</b>, the main hub. Some "interchanges" are a walk between separate stations: follow the signs and allow 5–10 minutes.</li>
+            <li>Peak hours (about 7:30–9:00 and 17:30–19:30) get packed.</li>
+          </ul>
+        ),
+      },
+      {
+        title: 'Paying',
+        body: (
+          <ul className="list-disc pl-5 space-y-1">
+            <li><b>Touch 'n Go card</b> works on all city trains, most buses and toll roads. Top up at stations or convenience stores.</li>
+            <li>Many Rapid KL gates also take contactless bank cards. Otherwise buy a token at the machine.</li>
+            <li>Tap in and tap out with the same card.</li>
+          </ul>
+        ),
+      },
+      {
+        title: 'Grab and taxis',
+        body: (
+          <ul className="list-disc pl-5 space-y-1">
+            <li><b>Grab</b> is the easy default: the price is fixed before you ride. Meet the driver at the pickup point shown in the app.</li>
+            <li>Street taxis should use the meter; agree the fare first if they won't.</li>
+            <li>In heavy rain or rush hour, Grab prices rise and traffic crawls: the train is often quicker.</li>
+          </ul>
+        ),
+      },
+      {
+        title: 'Free buses and walking',
+        body: (
+          <ul className="list-disc pl-5 space-y-1">
+            <li><b>GoKL City Bus</b> in central KL and <b>CAT</b> in George Town, Penang are free.</li>
+            <li>The covered, air-conditioned walkway links Bukit Bintang and KLCC: about 15–20 minutes on foot, out of the sun and rain.</li>
+            <li>Afternoon heat and storms are routine: plan walks for the morning or evening.</li>
+          </ul>
+        ),
+      },
+      {
+        title: 'On board',
+        body: (
+          <ul className="list-disc pl-5 space-y-1">
+            <li>No eating or drinking on trains and in paid areas; fines apply.</li>
+            <li>KTM Komuter has women-only coaches, marked with pink signs.</li>
+            <li>Mosques: dress modestly; robes are often provided at visitor entrances.</li>
+          </ul>
+        ),
+      },
+    ],
+  },
+}
+
+const GENERIC: CountryGuide = {
+  title: 'Getting around',
+  cards: [
+    {
+      title: 'Public transport',
+      body: (
+        <ul className="list-disc pl-5 space-y-1">
+          <li>Use <b>Navigate</b> on each stop: Google Maps has live routes, times and fares for most cities.</li>
+          <li>Ask at your hotel which transport card locals use; many cities also take contactless bank cards at the gate.</li>
+        </ul>
+      ),
+    },
+    {
+      title: 'Taxis and ride-hailing',
+      body: (
+        <ul className="list-disc pl-5 space-y-1">
+          <li>Grab covers most of Southeast Asia; Uber, Bolt or local apps elsewhere. The price is fixed before you ride.</li>
+          <li>Street taxis: insist on the meter, or agree the fare before you get in.</li>
+        </ul>
+      ),
+    },
+  ],
+}
+
+function GettingAround() {
+  const g = COUNTRY_GUIDES[destCountry()] ?? { ...GENERIC, title: `Getting around${COUNTRY_NAME[destCountry()] ? ` ${COUNTRY_NAME[destCountry()]}` : ''}` }
+  return (
+    <div className="pt-safe bottom-nav-space px-4">
+      <h1 className="pt-2 text-3xl font-bold tracking-tight">{g.title}</h1>
+      <p className="mt-1 text-[15px] text-muted">The basics for first-timers. Live routes and times are always in Google Maps.</p>
+      <div className="mt-4 space-y-2">
+        {g.cards.map((c) => (
+          <Card key={c.title} className="p-4 text-[15px] space-y-2">
+            <div className="text-[17px] font-semibold">{c.title}</div>
+            {c.body}
+          </Card>
+        ))}
+      </div>
     </div>
   )
 }

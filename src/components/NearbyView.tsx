@@ -47,7 +47,7 @@ interface Props {
 type Status = { state: 'idle' | 'loading' | 'done' } | { state: 'error'; message: string }
 
 export function NearbyView({ geo, timeline, itin, online, showOnMap }: Props) {
-  const gps = geo.status === 'active' && !geo.outsideJapan ? geo.position : null
+  const gps = geo.status === 'active' ? geo.position : null
   const next = timeline.nextIndex >= 0 ? timeline.entries[timeline.nextIndex].place : null
   const [around, setAround] = useState<'me' | 'next'>(gps ? 'me' : 'next')
   const centre: LatLng | null = around === 'me' ? gps : next

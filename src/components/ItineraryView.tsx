@@ -6,6 +6,10 @@ import type { Geo } from '../hooks/useGeolocation'
 import type { TripApi } from '../hooks/useTrip'
 import { homePlace, type HomeTrip } from '../lib/home'
 import { regionOf } from '../data/regions'
+import { useLivePlaces } from '../hooks/useLivePlaces'
+import { inJapan } from '../lib/destination'
+import { useOnline } from '../hooks/useOnline'
+import { PhotosProvider } from '../hooks/usePhotos'
 import { downloadIcs } from '../lib/calendar'
 import { inHome } from '../lib/fx'
 import { scorePlace, whyPlace } from '../lib/planner'
@@ -13,7 +17,7 @@ import { INTEREST_LABEL, INTERESTS, type Prefs } from '../lib/prefs'
 import { directionsUrl, modeToGoogle } from '../lib/maps'
 import { costFor, recommend } from '../lib/pricing'
 import type { Advice, Timeline } from '../lib/schedule'
-import { dateLabel, fmtDuration, fmtMin, parseHm, planDayStatus, todayJst } from '../lib/time'
+import { dateLabel, fmtDuration, fmtMin, parseHm, planDayStatus, todayLocal } from '../lib/time'
 import type { Interest, ItineraryStop, LatLng, Place, TransportMode } from '../types'
 import { MODE_META } from './Journey'
 import { HomeCard } from './HomeTrip'
@@ -117,7 +121,7 @@ function DayList({ itin, timeline, advice, gps, openJourney, showOnMap, trip, op
 
   return (
     <div className="space-y-3 pt-3">
-      <DayWeatherNote date={itin.state.date ?? todayJst()} />
+      <DayWeatherNote date={itin.state.date ?? todayLocal()} />
       <Notice
         tone={advice.tone === 'ok' ? 'ok' : advice.tone === 'warn' ? 'warn' : 'bad'}
         action={
@@ -261,8 +265,8 @@ function StopCard({ stop, index, count, itin, timeline, gps, openJourney, showOn
             <button className="flex-1 min-w-0 text-left" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
               <div className={`text-[19px] font-bold leading-tight ${dim ? 'text-muted' : ''} ${stop.status === 'skipped' ? 'line-through' : ''}`}>{placeLabel(place)}</div>
               <div className="text-[13px] text-muted truncate">
-                {place.name !== placeLabel(place) ? `${place.name} · ` : ''}
-                {place.nameJa}
+                {place.name !== placeLabel(place) ? `${place.name}${place.nameJa && place.nameJa !== place.name ? ' · ' : ''}` : ''}
+                {place.nameJa !== place.name && place.nameJa}
               </div>
               {stop.note && stop.status === 'pending' && <div className="mt-0.5 text-[13px] text-accent">{stop.note}</div>}
             </button>
@@ -295,7 +299,7 @@ function StopCard({ stop, index, count, itin, timeline, gps, openJourney, showOn
               <Clock size={13} /> Stay {fmtDuration(stop.durationMin)}
             </Pill>
             {stop.must && <Pill className="bg-accent/12 text-accent">Your pick</Pill>}
-            {entry && stop.status === 'pending' && <RainWarning place={place} date={itin.state.date ?? todayJst()} atMin={entry.projectedArrive} />}
+            {entry && stop.status === 'pending' && <RainWarning place={place} date={itin.state.date ?? todayLocal()} atMin={entry.projectedArrive} />}
             <ShopChips stopPlaceId={place.id} />
             {place.closesLabel && <Pill className="bg-warn/15 text-[#a66a00] dark:text-warn">{place.closesLabel}</Pill>}
             <button className="ml-auto text-muted" onClick={() => setOpen((v) => !v)} aria-label="More">
@@ -388,8 +392,9 @@ function StopCard({ stop, index, count, itin, timeline, gps, openJourney, showOn
   )
 }
 
-type GuideArea = 'tokyo' | 'tokyo-trips' | 'kansai' | 'kansai-trips'
+type GuideArea = 'near' | 'tokyo' | 'tokyo-trips' | 'kansai' | 'kansai-trips'
 const GUIDE_AREAS: { id: GuideArea; label: string }[] = [
+  { id: 'near', label: 'Near your stay' },
   { id: 'tokyo', label: 'Tokyo' },
   { id: 'tokyo-trips', label: 'Day trips from Tokyo' },
   { id: 'kansai', label: 'Kyoto & Osaka' },
@@ -398,21 +403,30 @@ const GUIDE_AREAS: { id: GuideArea; label: string }[] = [
 
 function PlacesGuide({ itin, gps, showOnMap, interests }: { itin: ItineraryApi; gps: LatLng | null; showOnMap: (p: Place) => void; interests: Interest[] }) {
   const [filter, setFilter] = useState<Interest | 'all'>('all')
-  const homeRegion = (() => {
-    const h = homePlace(itin.state)
-    return Number.isFinite(h.lat) ? regionOf(h) : 'tokyo'
-  })()
-  const [area, setArea] = useState<GuideArea>(homeRegion === 'kansai' ? 'kansai' : 'tokyo')
+  const home = homePlace(itin.state)
+  const homeRegion = Number.isFinite(home.lat) ? regionOf(home) : 'tokyo'
+  const isLive = homeRegion === 'live'
+  const online = useOnline()
+  const live = useLivePlaces(isLive ? home : null, online)
+  // Away from Japan only the places around your stay are relevant.
+  const areas = GUIDE_AREAS.filter((a) => (a.id === 'near' ? isLive : inJapan()))
+  const [area, setArea] = useState<GuideArea>(isLive ? 'near' : homeRegion === 'kansai' ? 'kansai' : 'tokyo')
   const inPlan = new Set(itin.state.stops.map((s) => s.placeId))
+  const liveIds = new Set(live.places.map((p) => p.id))
   const inArea = (p: Place) =>
-    area === 'tokyo'
+    area === 'near'
+      ? liveIds.has(p.id)
+      : area === 'tokyo'
       ? (p.region ?? 'tokyo') === 'tokyo' && !p.dayTrip
       : area === 'tokyo-trips'
         ? (p.region ?? 'tokyo') === 'tokyo' && !!p.dayTrip
         : area === 'kansai'
           ? p.region === 'kansai' && !p.dayTrip
           : p.region === 'kansai' && !!p.dayTrip
-  const visible = PLACES.filter((p) => !p.hidden && p.id !== itin.state.startPlaceId && !p.custom && inArea(p))
+  const visible =
+    area === 'near'
+      ? live.places.filter((p) => !p.hidden).sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
+      : PLACES.filter((p) => !p.hidden && p.id !== itin.state.startPlaceId && !p.custom && inArea(p))
   const recommended = visible
     .filter((p) => p.tags?.length && p.kind !== 'shop' && !inPlan.has(p.id))
     .sort((a, b) => scorePlace(b, interests) - scorePlace(a, interests))
@@ -420,63 +434,71 @@ function PlacesGuide({ itin, gps, showOnMap, interests }: { itin: ItineraryApi; 
   const list = filter === 'all' ? visible : visible.filter((p) => p.tags?.includes(filter))
 
   return (
-    <div>
-      <div className="-mx-4 mt-3 overflow-x-auto px-4 [scrollbar-width:none]">
-        <div className="flex gap-2 w-max">
-          {GUIDE_AREAS.map((a) => (
-            <button
-              key={a.id}
-              onClick={() => setArea(a.id)}
-              className={`rounded-2xl px-3.5 py-2 text-[14px] font-semibold ${area === a.id ? 'bg-accent text-white' : 'bg-card'}`}
-            >
-              {a.label}
-            </button>
-          ))}
+    // Photos for places found live, which the app-wide provider doesn't know about.
+    <PhotosProvider online={online} places={isLive ? live.places : []}>
+      <div>
+        <div className="-mx-4 mt-3 overflow-x-auto px-4 [scrollbar-width:none]">
+          <div className="flex gap-2 w-max">
+            {areas.map((a) => (
+              <button
+                key={a.id}
+                onClick={() => setArea(a.id)}
+                className={`rounded-2xl px-3.5 py-2 text-[14px] font-semibold ${area === a.id ? 'bg-accent text-white' : 'bg-card'}`}
+              >
+                {a.label}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
-      <SectionTitle>Recommended for you</SectionTitle>
-      <p className="px-1 -mt-1 mb-2 text-[13px] text-muted">
-        {interests.length ? `Based on ${interests.map((i) => INTEREST_LABEL[i]).join(', ')}.` : 'Tokyo classics. Set interests in Settings to personalise.'} Not already in your day.
-      </p>
-      <div className="-mx-4 overflow-x-auto px-4 [scrollbar-width:none]">
-        <div className="flex gap-3 w-max pb-1">
-          {recommended.map((p) => (
-            <Card key={p.id} className="w-64 p-3 space-y-2 shrink-0">
-              <PlacePhoto place={p} />
-              <div className="font-bold leading-tight">{p.name}</div>
-              <div className="text-[13px] text-accent">{whyPlace(p, interests)}</div>
-              <div className="grid grid-cols-2 gap-2">
-                <Button variant="primary" className="min-h-10 px-2 text-[14px]" onClick={() => itin.add(p.id)}>
-                  <Plus size={15} /> Add
-                </Button>
-                <Button className="min-h-10 px-2 text-[14px]" onClick={() => showOnMap(p)}>
-                  <MapPin size={15} /> Map
-                </Button>
-              </div>
-            </Card>
-          ))}
+        {area === 'near' && live.status === 'loading' && <Notice tone="info">Finding things to do near {home.name}…</Notice>}
+        {area === 'near' && live.status === 'error' && !live.places.length && <Notice tone="warn">Couldn't look up places near {home.name}. Connect to the internet and try again.</Notice>}
+        {area === 'near' && live.places.some((p) => p.region === 'live') && (
+          <p className="px-1 pt-2 text-[12px] text-muted">Found on Wikipedia within about 25 km of your stay, ranked by how many people read about them. No opening hours: check before going.</p>
+        )}
+        <SectionTitle>Recommended for you</SectionTitle>
+        <p className="px-1 -mt-1 mb-2 text-[13px] text-muted">
+          {interests.length ? `Based on ${interests.map((i) => INTEREST_LABEL[i]).join(', ')}.` : 'The classics. Set interests in Settings to personalise.'} Not already in your day.
+        </p>
+        <div className="-mx-4 overflow-x-auto px-4 [scrollbar-width:none]">
+          <div className="flex gap-3 w-max pb-1">
+            {recommended.map((p) => (
+              <Card key={p.id} className="w-64 p-3 space-y-2 shrink-0">
+                <PlacePhoto place={p} />
+                <div className="font-bold leading-tight">{p.name}</div>
+                <div className="text-[13px] text-accent">{whyPlace(p, interests)}</div>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button variant="primary" className="min-h-10 px-2 text-[14px]" onClick={() => (p.custom ? itin.addCustom(p) : itin.add(p.id))}>
+                    <Plus size={15} /> Add
+                  </Button>
+                  <Button className="min-h-10 px-2 text-[14px]" onClick={() => showOnMap(p)}>
+                    <MapPin size={15} /> Map
+                  </Button>
+                </div>
+              </Card>
+            ))}
+          </div>
         </div>
-      </div>
 
-      <SectionTitle>All destinations</SectionTitle>
-      <div className="-mx-4 overflow-x-auto px-4 pb-3 [scrollbar-width:none]">
-        <div className="flex gap-2 w-max">
-          {(['all', ...INTERESTS] as const).map((i) => (
-            <button
-              key={i}
-              onClick={() => setFilter(i)}
-              className={`rounded-full px-3.5 py-2 text-[14px] font-semibold ${filter === i ? 'bg-accent text-white' : 'bg-card'}`}
-            >
-              {i === 'all' ? 'All' : INTEREST_LABEL[i]}
-            </button>
+        <SectionTitle>All destinations</SectionTitle>
+        <div className="-mx-4 overflow-x-auto px-4 pb-3 [scrollbar-width:none]">
+          <div className="flex gap-2 w-max">
+            {(['all', ...INTERESTS] as const).map((i) => (
+              <button
+                key={i}
+                onClick={() => setFilter(i)}
+                className={`rounded-full px-3.5 py-2 text-[14px] font-semibold ${filter === i ? 'bg-accent text-white' : 'bg-card'}`}
+              >
+                {i === 'all' ? 'All' : INTEREST_LABEL[i]}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="space-y-3">
+          {list.map((p) => (
+            <PlaceCard key={p.id} place={p} gps={gps} inPlan={inPlan.has(p.id)} onAdd={() => (p.custom ? itin.addCustom(p) : itin.add(p.id))} onMap={() => showOnMap(p)} />
           ))}
         </div>
       </div>
-      <div className="space-y-3">
-        {list.map((p) => (
-          <PlaceCard key={p.id} place={p} gps={gps} inPlan={inPlan.has(p.id)} onAdd={() => itin.add(p.id)} onMap={() => showOnMap(p)} />
-        ))}
-      </div>
-    </div>
+    </PhotosProvider>
   )
 }

@@ -33,7 +33,7 @@ export interface Place extends LatLng {
   nearestStation: string
   /** Typical hours. Not live data: always labelled "check before going". */
   hours?: string
-  /** Minutes after midnight JST when the main attraction typically closes. */
+  /** Minutes after midnight, destination time when the main attraction typically closes. */
   closesAt?: number
   closesLabel?: string
   mandatory?: boolean
@@ -63,9 +63,12 @@ export interface Place extends LatLng {
   region?: Region
   /** Part of a day trip (see data/regions.ts) rather than everyday city sightseeing. */
   dayTrip?: string
+  /** ISO country code when known (search results, home). */
+  country?: string
 }
 
-export type Region = 'tokyo' | 'kansai'
+/** Curated city guides, or 'live': anywhere else, with places found on the fly. */
+export type Region = 'tokyo' | 'kansai' | 'live'
 
 export interface Station extends LatLng {
   name: string
@@ -127,9 +130,9 @@ export interface ItineraryStop {
 export interface ItineraryState {
   version: 1
   startPlaceId: string
-  /** Minutes after midnight JST. */
+  /** Minutes after midnight, destination time. */
   startMin: number
-  /** Minutes after midnight JST when the day should end. */
+  /** Minutes after midnight, destination time when the day should end. */
   endMin: number
   stops: ItineraryStop[]
   /** Unix ms when the user last marked a stop done (used as "departed from" time). */
@@ -138,8 +141,12 @@ export interface ItineraryState {
   home?: HomeSetting
   /** Places added from search or nearby, so stops can refer to them by id. */
   customPlaces?: Place[]
-  /** YYYY-MM-DD in Japan time. Undefined = whatever day it is. */
+  /** YYYY-MM-DD at the destination. Undefined = whatever day it is. */
   date?: string
+  /** IANA time zone of the destination (default Asia/Tokyo). */
+  tz?: string
+  /** ISO country code of the destination, e.g. "JP", "MY" (default JP). */
+  country?: string
 }
 
 export interface HomeSetting {

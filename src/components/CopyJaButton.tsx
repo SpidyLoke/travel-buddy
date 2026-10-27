@@ -6,6 +6,8 @@ import { Button } from './ui'
 /** Copies the Japanese name so it can be pasted into a taxi app or shown to staff. */
 export function CopyJaButton({ place, className = '' }: { place: Place; className?: string }) {
   const [state, setState] = useState<'idle' | 'copied' | 'failed'>('idle')
+  // Only useful when there is a name in Japanese script to show.
+  if (!/[\u3040-\u30ff\u4e00-\u9fff]/.test(place.nameJa)) return null
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(place.nameJa)

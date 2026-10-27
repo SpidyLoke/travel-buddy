@@ -1,4 +1,5 @@
 import { BookOpen, Compass, House, ListChecks, Map } from 'lucide-react'
+import { inJapan } from '../lib/destination'
 
 export type Tab = 'home' | 'map' | 'nearby' | 'itinerary' | 'guide'
 
@@ -22,7 +23,8 @@ export function BottomNav({ tab, onChange }: { tab: Tab; onChange: (t: Tab) => v
             className={`flex flex-col items-center gap-1 pt-2.5 pb-2 text-[10.5px] font-semibold ${tab === id ? 'text-accent' : 'text-muted'}`}
           >
             <Icon size={24} strokeWidth={tab === id ? 2.4 : 1.8} />
-            {label}
+            {/* Away from Japan the guide tab covers all local transport. */}
+            {id === 'guide' && !inJapan() ? 'Transit' : label}
           </button>
         ))}
       </div>

@@ -219,13 +219,14 @@ interface PhotonFeature {
     locality?: string
     city?: string
     countrycode?: string
+    country?: string
     osm_value?: string
   }
 }
 
 const photonArea = (p: PhotonFeature['properties']) => [p.district ?? p.locality, p.city].filter(Boolean).join(', ')
 
-/** Free-text place search, biased towards a point. Japan only. */
+/** Free-text place search anywhere, biased towards a point. */
 export async function searchPlaces(q: string, near: LatLng | null, signal?: AbortSignal): Promise<NearbyResult[]> {
   const params = new URLSearchParams({ q, limit: '12', lang: 'en' })
   if (near) {
@@ -236,18 +237,25 @@ export async function searchPlaces(q: string, near: LatLng | null, signal?: Abor
   if (!res.ok) throw new Error(`Search ${res.status}`)
   const feats: PhotonFeature[] = (await res.json()).features ?? []
   const origin = near ?? { lat: 35.68, lng: 139.76 }
-  return feats
-    .filter((f) => f.properties.countrycode === 'JP')
-    .map((f) => {
+  return feats.map((f) => {
       const [lng, lat] = f.geometry.coordinates
       const p = f.properties
       const name = p.name || [p.street, p.housenumber].filter(Boolean).join(' ') || q
       const place = makePlace(`osm-${p.osm_type}-${p.osm_id}`, name, name, lat, lng, photonArea(p), {
         description: photonArea(p),
         suggestedMin: 30,
+        country: p.countrycode?.toUpperCase(),
       })
-      return { place, km: distanceKm(origin, place), detail: [p.osm_value?.replace(/_/g, ' '), photonArea(p)].filter(Boolean).join(' · ') }
+      return { place, km: distanceKm(origin, place), detail: [p.osm_value?.replace(/_/g, ' '), photonArea(p), p.country].filter(Boolean).join(' · ') }
     })
+}
+
+/** ISO country code at a point, from Photon. */
+export async function countryAt(at: LatLng, signal?: AbortSignal): Promise<string | null> {
+  const res = await fetch(`https://photon.komoot.io/reverse?lat=${at.lat}&lon=${at.lng}&lang=en`, { signal })
+  if (!res.ok) return null
+  const cc: string | undefined = (await res.json()).features?.[0]?.properties?.countrycode
+  return cc ? cc.toUpperCase() : null
 }
 
 /** Street / neighbourhood name for a position, for "Where am I?". */

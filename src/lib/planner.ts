@@ -1,6 +1,7 @@
 import { PLACE_BY_ID, PLACES } from '../data/places'
 import { regionOf } from '../data/regions'
 import type { Interest, ItineraryState, ItineraryStop, Pace, Place, Region, TransportMode } from '../types'
+import { LIVE_KM } from './discover'
 import { distanceKm } from './geo'
 import { INTEREST_LABEL } from './prefs'
 import { recommend } from './pricing'
@@ -41,6 +42,11 @@ export interface PlanInput {
   onlyIds?: string[]
   /** Visit lengths to keep instead of the suggested ones. */
   durations?: Record<string, number>
+  /** Places found live near home (region 'live'). */
+  extra?: Place[]
+  /** Destination time zone and country, stored with the plan. */
+  tz?: string
+  country?: string
 }
 
 export interface PlannedStop {
@@ -82,7 +88,10 @@ export function scorePlace(p: Place, interests: Interest[], offInterestPenalty =
 /** Recommendation reason, e.g. "Anime & games · Views · best in the evening". */
 export function whyPlace(p: Place, interests: Interest[]): string {
   const parts = overlap(p, interests).map((t) => INTEREST_LABEL[t])
-  if (!parts.length && (p.score ?? 0) >= 4) parts.push('Tokyo classic')
+  if (!parts.length && (p.score ?? 0) >= 4) {
+    // Live places are ranked by how many people read about them.
+    parts.push(p.region === 'live' ? 'Popular here' : p.dayTrip ? 'Highlight of the area' : p.region === 'kansai' ? 'Kansai classic' : 'Tokyo classic')
+  }
   const when = { morning: 'best in the morning', day: '', evening: 'best around dusk', night: 'best at night' }[p.best ?? 'day']
   if (when) parts.push(when)
   return parts.join(' · ') || 'Fits neatly into your route'
@@ -188,10 +197,17 @@ export function planDay(input: PlanInput): PlanResult {
   const doorstep = (p: Place) => distanceKm(p, input.home) < 0.3 && p.best !== 'night' && p.best !== 'evening'
   const region = input.region ?? regionOf(input.home)
   // City days use the home region's everyday places; day-trip days only that trip's places.
-  const inScope = (p: Place) => (input.dayTrip ? p.dayTrip === input.dayTrip : !p.dayTrip && (p.region ?? 'tokyo') === region)
+  // Anywhere else: every place within reach of home, built-in or found live.
+  const inScope = (p: Place) =>
+    region === 'live'
+      ? distanceKm(p, input.home) <= LIVE_KM
+      : input.dayTrip
+        ? p.dayTrip === input.dayTrip
+        : !p.dayTrip && (p.region ?? 'tokyo') === region
+  const catalogue = region === 'live' ? [...PLACES, ...(input.extra ?? []).filter((p) => !PLACES.includes(p))] : PLACES
   const pool = input.onlyIds
     ? input.onlyIds.map((id) => PLACE_BY_ID[id]).filter((p): p is Place => !!p)
-    : PLACES.filter((p) => !p.hidden && p.tags?.length && p.kind !== 'shop' && inScope(p) && !exclude.has(p.id) && (musts.has(p.id) || !doorstep(p)))
+    : catalogue.filter((p) => !p.hidden && p.tags?.length && p.kind !== 'shop' && inScope(p) && !exclude.has(p.id) && (musts.has(p.id) || !doorstep(p)))
   // On a day trip you've already paid the long ride: see as much of the area as fits.
   // Re-planning: these are stops you already chose, keep every one that fits.
   const tripBoost = input.dayTrip ? 4 : input.onlyIds ? 6 : 0
@@ -244,6 +260,34 @@ export function planDay(input: PlanInput): PlanResult {
     route = best.route
     current = best.sim
     if (best.place.group) usedGroups.add(best.place.group)
+  }
+
+  // Second look: places tried before the day reached their time (sunset views
+  // tried when the route still ended at noon) get another chance now, swapping
+  // out a weaker stop when the day is full.
+  if (!input.onlyIds) {
+    for (const p of remaining) {
+      if (route.includes(p)) continue
+      // Only ever trade up: a better place for a weaker one, never a classic for a shortcut.
+      const options: (Place | null)[] = route.length < max ? [null] : route.filter((q) => !musts.has(q.id) && value.get(q.id)! < value.get(p.id)!)
+      let best: { route: Place[]; sim: Sim; gain: number; out: Place | null } | null = null
+      for (const out of options) {
+        if (p.group && p.group !== out?.group && usedGroups.has(p.group)) continue
+        const base = out ? route.filter((q) => q !== out) : route
+        for (let i = 0; i <= base.length; i++) {
+          const cand = [...base.slice(0, i), p, ...base.slice(i)]
+          const s = sim(cand, musts)
+          if (!s.ok) continue
+          const gain = (value.get(p.id)! - (out ? value.get(out.id)! : 0)) * VALUE_MIN - (s.cost - current.cost)
+          if (gain > 0 && (!best || gain > best.gain)) best = { route: cand, sim: s, gain, out }
+        }
+      }
+      if (!best) continue
+      route = best.route
+      current = best.sim
+      if (best.out?.group) usedGroups.delete(best.out.group)
+      if (p.group) usedGroups.add(p.group)
+    }
   }
 
   // Tidy-up: move single stops to cheaper positions while the day still fits.
@@ -309,8 +353,11 @@ export function planToItinerary(input: PlanInput, plan: PlanResult): ItinerarySt
     endMin: input.endMin,
     stops,
     home: { name: input.home.name, query: input.home.mapsQuery, placeId: 'home', lat: input.home.lat, lng: input.home.lng },
-    customPlaces: [home],
+    // Places found live travel with the plan, so shared links and lobbies can show them.
+    customPlaces: [home, ...plan.stops.map((s) => s.place).filter((p) => p.custom)],
     date: input.date,
+    tz: input.tz,
+    country: input.country,
   }
 }
 
@@ -350,7 +397,7 @@ export function addDays(ymd: string, n: number): string {
  */
 export function planTrip(input: TripInput): TripDay[] {
   const musts = input.mustIds
-    .map((id) => PLACES.find((p) => p.id === id))
+    .map((id) => PLACE_BY_ID[id])
     .filter((p): p is Place => !!p)
     .sort((a, b) => a.lng - b.lng)
   const tripDays = dayTripDays(input.days, input.dayTrips ?? [])

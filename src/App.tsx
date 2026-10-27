@@ -27,7 +27,9 @@ import { useReminders } from './hooks/useReminders'
 import { useTheme } from './hooks/useTheme'
 import { existingHome, homePlace, homeTrip, homeTripFromHere } from './lib/home'
 import { adviseSchedule, buildTimeline } from './lib/schedule'
-import { fmtMin, nowMinJst, todayJst } from './lib/time'
+import { fmtMin, nowMinLocal, setTimeZone, todayLocal } from './lib/time'
+import { setDestination } from './lib/destination'
+import { regionOf } from './data/regions'
 import { replanFromNow } from './lib/replan'
 import { refreshWeather } from './lib/weather'
 import { PLACES, placeLabel } from './data/places'
@@ -42,6 +44,10 @@ export default function App() {
   const now = useNow()
   const geo = useGeolocation()
   const itin = useItinerary()
+  // Clocks, prices and transport follow wherever the active plan is.
+  setTimeZone(itin.state.tz ?? 'Asia/Tokyo')
+  const planHome = homePlace(itin.state)
+  setDestination(itin.state.country, Number.isFinite(planHome.lat) ? regionOf(planHome) : 'tokyo')
   const online = useOnline()
   const theme = useTheme()
   const prefs = usePrefs()
@@ -84,7 +90,7 @@ export default function App() {
   const [, setWxTick] = useState(0)
   const wxHome = homePlace(itin.state)
   const wxAt = Number.isFinite(wxHome.lat) ? wxHome : { lat: 35.68, lng: 139.76 }
-  const wxDates = [...new Set([todayJst(), ...tripPlan.days.map((d) => d.date ?? todayJst())])].join(',')
+  const wxDates = [...new Set([todayLocal(), ...tripPlan.days.map((d) => d.date ?? todayLocal())])].join(',')
   useEffect(() => {
     if (online) refreshWeather(wxAt, wxDates.split(',')).then(() => setWxTick((t) => t + 1))
     // wxAt is captured via its rounded coordinates in the key below.
@@ -94,19 +100,19 @@ export default function App() {
   const [, setFxTick] = useState(0)
   useEffect(() => {
     if (online) refreshFx().then(() => setFxTick((t) => t + 1))
-  }, [online])
+  }, [online, itin.state.country])
 
   const showWizard = (!prefs.prefs.onboarded || wizard !== null) && !incoming && !invite
 
-  const nowMin = nowMinJst(now)
+  const nowMin = nowMinLocal(now)
   // Where you are (live, or a recent last-known fix), so projections start from reality.
   const fresh = geo.updatedAt != null && Date.now() - geo.updatedAt < 45 * 60000
-  const here = (geo.status === 'active' || geo.status === 'paused') && fresh && !geo.outsideJapan ? geo.position : null
+  const here = (geo.status === 'active' || geo.status === 'paused') && fresh ? geo.position : null
   const hereKey = here ? `${here.lat.toFixed(3)},${here.lng.toFixed(3)}` : ''
   const timeline = useMemo(() => buildTimeline(itin.state, nowMin, here), [itin.state, nowMin, hereKey]) // here via hereKey
 
   const replan = () => {
-    const r = replanFromNow(itin.state, nowMinJst(), here)
+    const r = replanFromNow(itin.state, nowMinLocal(), here)
     if (!r) return
     const msg = [
       `New order from ${here ? 'where you are' : 'your last stop'}, leaving now:`,
@@ -120,7 +126,7 @@ export default function App() {
   const advice = useMemo(() => adviseSchedule(itin.state, timeline), [itin.state, timeline])
   useReminders(timeline, itin.state.date, prefs.prefs.alerts)
   const trip = useMemo(() => homeTrip(itin.state, timeline, nowMin), [itin.state, timeline, nowMin])
-  const gpsLive = geo.status === 'active' && !geo.outsideJapan ? geo.position : null
+  const gpsLive = geo.status === 'active' ? geo.position : null
   const hereTrip = useMemo(() => (gpsLive ? homeTripFromHere(itin.state, gpsLive, nowMin) : null), [itin.state, gpsLive, nowMin])
   const [homeOpen, setHomeOpen] = useState(false)
 
@@ -132,7 +138,7 @@ export default function App() {
   }, [dayDone, gpsStatus, stopGps])
 
   const journey = journeyStopId ? timeline.entries.find((e) => e.stop.id === journeyStopId) : undefined
-  const gps = geo.status === 'active' && !geo.outsideJapan ? geo.position : null
+  const gps = geo.status === 'active' ? geo.position : null
 
   // Built-in destinations plus anything added from Nearby/search.
   const photoPlaces = useMemo(

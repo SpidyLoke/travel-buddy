@@ -2,7 +2,7 @@ import { findLeg } from '../data/legs'
 import { getPlace, placeLabel } from '../data/places'
 import type { ItineraryState, ItineraryStop, LatLng, Place, TransportMode } from '../types'
 import { distanceKm } from './geo'
-import { dateLabel, fmtMin, nowMinJst, planDayStatus } from './time'
+import { dateLabel, fmtMin, nowMinLocal, planDayStatus, zoneLabel } from './time'
 
 export type EstimateSource = 'plan' | 'calc'
 
@@ -77,7 +77,7 @@ export const AWAY_KM = 1
  * than a kilometre away, you're assumed to leave now, so arrivals are never
  * shown in the past.
  */
-export function buildTimeline(state: ItineraryState, now = nowMinJst(), here?: LatLng | null): Timeline {
+export function buildTimeline(state: ItineraryState, now = nowMinLocal(), here?: LatLng | null): Timeline {
   const active = state.stops.filter((s) => s.status !== 'skipped')
   const entries: TimelineEntry[] = []
   let prev = getPlace(state.startPlaceId)
@@ -86,7 +86,7 @@ export function buildTimeline(state: ItineraryState, now = nowMinJst(), here?: L
   const nextIndex = active.findIndex((s) => s.status === 'pending')
   const day = planDayStatus(state.date)
   const isToday = day === 'today' || day === 'undated'
-  const lastDone = state.lastDepartedAt != null ? nowMinJst(new Date(state.lastDepartedAt)) : null
+  const lastDone = state.lastDepartedAt != null ? nowMinLocal(new Date(state.lastDepartedAt)) : null
   let away = false
   let fromHere: TravelEstimate | undefined
 
@@ -146,12 +146,12 @@ export interface Advice {
 }
 
 /** Turns the projected timeline into one recommendation. Based on estimates only. */
-export function adviseSchedule(state: ItineraryState, tl: Timeline, now = nowMinJst()): Advice {
+export function adviseSchedule(state: ItineraryState, tl: Timeline, now = nowMinLocal()): Advice {
   if (tl.nextIndex === -1) return { tone: 'ok', message: 'Day complete. Nice work.' }
   const day = planDayStatus(state.date)
   if (day === 'future' && !tl.started) return { tone: 'ok', message: `Planned for ${dateLabel(state.date!)}, starting ${fmtMin(state.startMin)}.` }
   if (day === 'past' && !tl.started) return { tone: 'warn', message: `This plan was for ${dateLabel(state.date!)}. Plan a new day from the Itinerary tab.` }
-  if (!tl.started) return { tone: 'ok', message: `Your day starts at ${fmtMin(state.startMin)} JST.` }
+  if (!tl.started) return { tone: 'ok', message: `Your day starts at ${fmtMin(state.startMin)} (${zoneLabel()}).` }
 
   const pending = tl.entries.slice(tl.nextIndex)
   const delay = Math.round(tl.delayMin)

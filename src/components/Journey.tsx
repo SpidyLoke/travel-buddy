@@ -1,18 +1,25 @@
-import { ArrowRight, Bike, ExternalLink, Footprints, Info, TrainFront, TriangleAlert } from 'lucide-react'
+import { ArrowRight, Bike, CarTaxiFront, ExternalLink, Footprints, Info, TrainFront, TriangleAlert } from 'lucide-react'
 import { findLeg, findTrainLeg } from '../data/legs'
 import { placeLabel } from '../data/places'
 import { formatDistance } from '../lib/geo'
 import { directionsUrl, LUUP_URL } from '../lib/maps'
 import { homeAmount } from '../lib/fx'
-import { getPrefs } from '../lib/prefs'
-import { costFor, LUUP_BLOCK_MIN, luupRateLabel, recommend } from '../lib/pricing'
+import { curatedCity, inJapan, luupHere } from '../lib/destination'
+import { costFor, LUUP_BLOCK_MIN, luupPlan, luupRateLabel, recommend } from '../lib/pricing'
 import { estimateTravel } from '../lib/schedule'
 import { fmtDuration } from '../lib/time'
 import type { LatLng, Leg, Place, TrainSegment, TransportMode } from '../types'
 import { Card, LinkButton, Notice } from './ui'
 
 export const MODE_META: Record<TransportMode, { label: string; Icon: typeof TrainFront; colour: string }> = {
-  train: { label: 'Train', Icon: TrainFront, colour: 'text-accent' },
+  train: {
+    // "Transit" away from the big Japanese cities: buses count too.
+    get label() {
+      return curatedCity() ? 'Train' : 'Transit'
+    },
+    Icon: TrainFront,
+    colour: 'text-accent',
+  },
   luup: { label: 'LUUP', Icon: Bike, colour: 'text-luup' },
   walk: { label: 'Walk', Icon: Footprints, colour: 'text-ok' },
 }
@@ -111,7 +118,7 @@ interface CompareProps {
 
 export function TransportCompare({ from, to, selected, onSelect }: CompareProps) {
   const leg = findLeg(from.id, to.id)
-  const modes: TransportMode[] = ['train', 'luup', 'walk']
+  const modes: TransportMode[] = luupHere() ? ['train', 'luup', 'walk'] : ['train', 'walk']
   const est = Object.fromEntries(modes.map((m) => [m, estimateTravel(from, to, m)])) as Record<TransportMode, ReturnType<typeof estimateTravel>>
   const walkTooFar = est.walk.km > 3.5
   const rec = recommend(from, to)
@@ -157,7 +164,15 @@ export function TransportCompare({ from, to, selected, onSelect }: CompareProps)
         )}
       </div>
       <p className="mt-2 px-1 text-[12px] text-muted leading-snug">
-        About {formatDistance(est.train.km)}. Times are planning estimates{Object.values(est).some((e) => e.source === 'calc') ? '; * = calculated from distance' : ''}. Train = adult Suica fare, checked Oct 2026{leg?.fareApprox ? ' (~ = could be one distance band off)' : ''}. LUUP = {getPrefs().luup === 'none' ? 'not set up (change in Settings)' : `your plan, ${luupRateLabel()}`}.
+        About {formatDistance(est.train.km)}. Times are planning estimates{Object.values(est).some((e) => e.source === 'calc') ? '; * = calculated from distance' : ''}.
+        {luupHere() ? (
+          <>
+            {' '}Train = adult Suica fare, checked Oct 2026{leg?.fareApprox ? ' (~ = could be one distance band off)' : ''}. LUUP ={' '}
+            {luupPlan() === 'none' ? 'not set up (change in Settings)' : `your plan, ${luupRateLabel()}`}.
+          </>
+        ) : (
+          ' Fares and live times are in Google Maps.'
+        )}
       </p>
     </div>
   )
@@ -192,12 +207,19 @@ export function TrainMode({ from, to, origin }: ModeProps) {
         </>
       ) : (
         <Notice tone="info">
-          No hand-written steps for {placeLabel(from)} → {placeLabel(to)} yet. Open live directions for the line, direction and transfers, then use the Train Guide tab if you get stuck.
+          {curatedCity()
+            ? `No hand-written steps for ${placeLabel(from)} → ${placeLabel(to)} yet. Open live directions for the line, direction and transfers, then use the Trains tab if you get stuck.`
+            : `Open live directions for the buses or trains from ${placeLabel(from)} to ${placeLabel(to)}. Where service is sparse, a taxi${inJapan() ? '' : ' or Grab'} is often the realistic option.`}
         </Notice>
       )}
       <LinkButton variant="primary" className="w-full min-h-14 text-[17px]" href={directionsUrl(to, 'transit', origin)}>
-        <TrainFront size={20} /> Open live train directions
+        <TrainFront size={20} /> Open live {curatedCity() ? 'train' : 'transit'} directions
       </LinkButton>
+      {!curatedCity() && (
+        <LinkButton className="w-full" href={directionsUrl(to, 'driving', origin)}>
+          <CarTaxiFront size={20} /> {inJapan() ? 'Taxi: driving route and time' : 'Grab or taxi: driving route and time'}
+        </LinkButton>
+      )}
       <p className="px-1 text-[12px] text-muted">Google Maps shows live departures, platforms and fares. This app does not.</p>
     </div>
   )
@@ -250,7 +272,7 @@ export function LuupMode({ from, to, origin }: ModeProps) {
       </LinkButton>
       <p className="px-1 text-[12px] text-muted flex gap-1.5">
         <Info size={14} className="shrink-0 mt-0.5" />
-        This app has no scooter-legal routing or live scooter/port data. Google opens in cycling mode; if it falls back to walking paths, stay on roads. Port locations and availability are only in the LUUP app. {getPrefs().luup === 'sub' ? `Price assumes your subscription; going past ${LUUP_BLOCK_MIN} min starts another block.` : getPrefs().luup === 'payg' ? 'Pay-as-you-go price is approximate: the app shows the exact rate before you unlock.' : 'You have not set up LUUP: sign up in the LUUP app (ID check and a short rules quiz) before your first ride.'}
+        This app has no scooter-legal routing or live scooter/port data. Google opens in cycling mode; if it falls back to walking paths, stay on roads. Port locations and availability are only in the LUUP app. {luupPlan() === 'sub' ? `Price assumes your subscription; going past ${LUUP_BLOCK_MIN} min starts another block.` : luupPlan() === 'payg' ? 'Pay-as-you-go price is approximate: the app shows the exact rate before you unlock.' : 'You have not set up LUUP: sign up in the LUUP app (ID check and a short rules quiz) before your first ride.'}
       </p>
     </div>
   )

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { registerPlace } from '../data/places'
 import { load, save } from '../lib/storage'
-import { todayJst } from '../lib/time'
+import { todayLocal } from '../lib/time'
 import type { ItineraryState } from '../types'
 import type { ItineraryApi } from './useItinerary'
 
@@ -61,7 +61,7 @@ export function useTrip(itin: ItineraryApi) {
     itinRef.current.replace(days[0])
   }, [])
 
-  const today = todayJst()
+  const today = todayLocal()
   const todayIndex = trip.days.findIndex((d) => d.date === today)
 
   return { days: trip.days, active: trip.active, switchDay, setDays, todayIndex }
