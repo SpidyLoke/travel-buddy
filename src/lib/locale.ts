@@ -136,8 +136,12 @@ export interface Locale {
  * Open-Meteo, falling back to a rough Japan check and the phone's own zone.
  */
 export async function localeAt(at: LatLng, countryHint?: string, signal?: AbortSignal): Promise<Locale> {
-  const country = countryHint ?? (await countryAt(at, signal).catch(() => null)) ?? (isInJapan(at) ? 'JP' : '??')
+  const country = countryHint ?? (await within(countryAt(at, signal))) ?? (isInJapan(at) ? 'JP' : '??')
   if (COUNTRY_TZ[country]) return { country, tz: COUNTRY_TZ[country] }
-  const tz = await tzAt(at, signal).catch(() => null)
+  const tz = await within(tzAt(at, signal))
   return { country, tz: tz ?? deviceTz() }
 }
+
+/** A lookup that hasn't answered in a few seconds is treated as unknown, so setup never stalls on it. */
+const within = <T,>(p: Promise<T | null>, ms = 4000): Promise<T | null> =>
+  Promise.race([p.catch(() => null), new Promise<null>((r) => setTimeout(() => r(null), ms))])

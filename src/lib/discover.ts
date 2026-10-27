@@ -122,11 +122,23 @@ interface WikiPage {
   extract?: string
 }
 
+/** Each Wikipedia request gives up after this long; one slow call never holds up the rest. */
+const WIKI_TIMEOUT_MS = 8000
+
 async function wikiQuery(params: Record<string, string>, signal?: AbortSignal): Promise<WikiPage[]> {
   const q = new URLSearchParams({ action: 'query', format: 'json', formatversion: '2', origin: '*', ...params })
-  const res = await fetch(`${WIKI}?${q}`, { signal })
-  if (!res.ok) throw new Error(`Wikipedia ${res.status}`)
-  return (await res.json()).query?.pages ?? []
+  const ctrl = new AbortController()
+  const stop = () => ctrl.abort()
+  signal?.addEventListener('abort', stop)
+  const timer = setTimeout(stop, WIKI_TIMEOUT_MS)
+  try {
+    const res = await fetch(`${WIKI}?${q}`, { signal: ctrl.signal })
+    if (!res.ok) throw new Error(`Wikipedia ${res.status}`)
+    return (await res.json()).query?.pages ?? []
+  } finally {
+    clearTimeout(timer)
+    signal?.removeEventListener('abort', stop)
+  }
 }
 
 /** Up to 50 articles within 10 km of a point (Wikipedia's limit per search). */
@@ -139,7 +151,7 @@ const around = (at: LatLng, signal?: AbortSignal) =>
       ggslimit: '50',
       prop: 'coordinates|description|pageviews|langlinks',
       colimit: 'max',
-      pvipdays: '30',
+      pvipdays: '14',
       lllang: 'ja',
       lllimit: 'max',
     },
@@ -234,28 +246,28 @@ export function cachedNearby(home: LatLng): Place[] | null {
 /** Curated places that are this close to a live place are the same sight. */
 const SAME_KM = 0.3
 
-/**
- * Things to do within ~25 km of home, best first: Wikipedia articles ranked by
- * page views, OpenStreetMap attractions Wikipedia doesn't cover, and shopping
- * areas. Cached for two weeks per home; throws only when nothing could be
- * fetched and nothing is cached.
- */
-export async function discoverNearby(home: LatLng, opts: { inJapan: boolean; signal?: AbortSignal; fresh?: boolean }): Promise<Place[]> {
-  const cache = load<CacheEntry[]>(KEY, [])
-  const hit = cache.find((e) => e.key === cacheKey(home))
-  if (hit && !opts.fresh && Date.now() - hit.at < TTL) {
-    hit.places.forEach(registerPlace)
-    return hit.places
-  }
-  const [wikiResults, osm] = await Promise.all([
-    Promise.allSettled(searchPoints(home).map((p) => around(p, opts.signal))),
-    osmThingsToDo(home, LIVE_KM * 800, 8000, opts.signal).catch(() => null),
-  ])
-  const pages = wikiResults.flatMap((r) => (r.status === 'fulfilled' ? r.value : []))
-  if (!pages.length && !osm) {
-    if (hit) return hit.places
-    throw new Error('Could not reach Wikipedia or OpenStreetMap')
-  }
+export interface DiscoverProgress {
+  /** 0–1 */
+  fraction: number
+  label: string
+}
+
+interface DiscoverOpts {
+  inJapan: boolean
+  signal?: AbortSignal
+  fresh?: boolean
+  onProgress?: (p: DiscoverProgress) => void
+  /** OpenStreetMap answered after the plan was built: here is the fuller list. */
+  onUpdate?: (places: Place[]) => void
+}
+
+/** The plan never waits longer than this for OpenStreetMap; it carries on in the background. */
+const OSM_BUDGET_MS = 7000
+/** …and never longer than this after Wikipedia has answered. */
+const OSM_GRACE_MS = 2500
+
+/** Wikipedia pages and OpenStreetMap results combined into one ranked list. */
+function combine(home: LatLng, pages: WikiPage[], osm: { attractions: Place[]; areas: Place[] } | null, inJapan: boolean): Place[] {
   const curated = PLACES.filter((p) => !p.hidden && distanceKm(p, home) < LIVE_KM + 5)
   const curatedWiki = new Set(curated.map((p) => p.wiki))
   const seen = new Set<number>()
@@ -265,7 +277,7 @@ export async function discoverNearby(home: LatLng, opts: { inJapan: boolean; sig
     seen.add(pg.pageid)
     const kind = classify(pg.description ?? '', pg.title)
     if (!kind || curatedWiki.has(pg.title)) continue
-    const p = toPlace(pg, kind, home, opts.inJapan)
+    const p = toPlace(pg, kind, home, inJapan)
     if (distanceKm(p, home) > LIVE_KM) continue
     if (curated.some((c) => distanceKm(c, p) < SAME_KM)) continue
     found.push(p)
@@ -275,11 +287,107 @@ export async function discoverNearby(home: LatLng, opts: { inJapan: boolean; sig
   const extra = (osm?.attractions ?? []).filter((p) => distanceKm(p, home) <= LIVE_KM && !known.some((k) => samePlace(k, p)))
   found.sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
   extra.sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
-  const top = found.slice(0, 50)
-  await addExtracts(top.slice(0, 40), opts.signal)
-  const all = [...top, ...extra.slice(0, 30), ...(osm?.areas ?? []).slice(0, 12)]
-  all.forEach(registerPlace)
-  save(KEY, [{ key: cacheKey(home), at: Date.now(), places: all }, ...cache.filter((e) => e.key !== cacheKey(home))].slice(0, 4))
+  return [...found.slice(0, 50), ...extra.slice(0, 30), ...(osm?.areas ?? []).slice(0, 12)]
+}
+
+function store(home: LatLng, places: Place[]): void {
+  places.forEach(registerPlace)
+  const cache = load<CacheEntry[]>(KEY, []).filter((e) => e.key !== cacheKey(home))
+  save(KEY, [{ key: cacheKey(home), at: Date.now(), places }, ...cache].slice(0, 4))
+}
+
+/**
+ * Things to do within ~25 km of home, best first: Wikipedia articles ranked by
+ * page views, OpenStreetMap attractions Wikipedia doesn't cover, and shopping
+ * areas. Answers as soon as Wikipedia has (OpenStreetMap gets a few seconds'
+ * grace, then is merged in the background through `onUpdate`). Article
+ * summaries are filled in afterwards too. Cached for two weeks per home;
+ * throws only when nothing could be fetched and nothing is cached.
+ */
+export async function discoverNearby(home: LatLng, opts: DiscoverOpts): Promise<Place[]> {
+  const hit = load<CacheEntry[]>(KEY, []).find((e) => e.key === cacheKey(home))
+  if (hit && !opts.fresh && Date.now() - hit.at < TTL) {
+    hit.places.forEach(registerPlace)
+    opts.onProgress?.({ fraction: 1, label: 'Ready' })
+    return hit.places
+  }
+  const points = searchPoints(home)
+  // Wikipedia searches count for most of the bar; OpenStreetMap for the rest.
+  const total = points.length + 2
+  let done = 0
+  let wikiDone = 0
+  // Requests tend to finish together, so between answers the bar creeps
+  // forward on its own (never past 90%) to show it's still working.
+  let creep = 0.03
+  let label = 'Looking up landmarks on Wikipedia…'
+  const emit = () => opts.onProgress?.({ fraction: Math.min(0.97, Math.max(creep, done / total)), label })
+  const report = (l: string) => {
+    label = l
+    creep = Math.max(creep, done / total)
+    emit()
+  }
+  const creeper = setInterval(() => {
+    creep += (0.9 - creep) * 0.06
+    emit()
+  }, 250)
+  report(label)
+
+  const started = Date.now()
+  const osmJob = osmThingsToDo(home, LIVE_KM * 800, 4000, opts.signal, 15000).then(
+    (r) => {
+      done += 2
+      report('Found shops and smaller sights')
+      return r
+    },
+    () => null,
+  )
+  const wikiResults = await Promise.allSettled(
+    points.map((p) =>
+      around(p, opts.signal).finally(() => {
+        done++
+        wikiDone++
+        report(wikiDone < points.length ? `Landmarks: ${wikiDone} of ${points.length} areas checked` : 'Shops and smaller sights (OpenStreetMap)…')
+      }),
+    ),
+  )
+  const pages = wikiResults.flatMap((r) => (r.status === 'fulfilled' ? r.value : []))
+
+  // Give OpenStreetMap a little longer, within the budget, then go with what we have.
+  const wait = Math.max(0, Math.min(OSM_GRACE_MS, OSM_BUDGET_MS - (Date.now() - started)))
+  const osm = await Promise.race([osmJob, new Promise<'late'>((r) => setTimeout(() => r('late'), wait))])
+  clearInterval(creeper)
+  if (!pages.length && (osm === 'late' || !osm)) {
+    // Nothing from Wikipedia: give OpenStreetMap until 12 s in total rather than fail.
+    const last = osm === 'late' ? await Promise.race([osmJob, new Promise<null>((r) => setTimeout(() => r(null), Math.max(0, 12000 - (Date.now() - started))))]) : null
+    if (!last) {
+      if (hit) return hit.places
+      throw new Error('Could not reach Wikipedia or OpenStreetMap')
+    }
+    const all = combine(home, [], last, opts.inJapan)
+    store(home, all)
+    return all
+  }
+  const all = combine(home, pages, osm === 'late' ? null : osm, opts.inJapan)
+  store(home, all)
+  opts.onProgress?.({ fraction: 1, label: 'Ready' })
+
+  // Background: OpenStreetMap if it was late, then article summaries.
+  void (async () => {
+    let current = all
+    if (osm === 'late') {
+      const late = await osmJob
+      if (late) {
+        const merged = combine(home, pages, late, opts.inJapan)
+        // Keep the same objects for places already shown, so plans that use them stay valid.
+        const byId = new Map(current.map((p) => [p.id, p]))
+        current = merged.map((p) => byId.get(p.id) ?? p)
+        store(home, current)
+        opts.onUpdate?.(current)
+      }
+    }
+    await addExtracts(current.filter((p) => p.wiki && p.id.startsWith('wiki-')).slice(0, 40), opts.signal).catch(() => {})
+    store(home, current)
+  })()
   return all
 }
 

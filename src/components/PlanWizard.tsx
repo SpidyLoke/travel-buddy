@@ -6,7 +6,8 @@ import type { Geo } from '../hooks/useGeolocation'
 import { addDays, planToItinerary, planTrip, type PlanInput } from '../lib/planner'
 import { DIET_LABEL, INTEREST_LABEL, INTERESTS, withPrefs, type Diet, type Prefs } from '../lib/prefs'
 import { dateLabel, fmtDuration, fmtMin, nowMinLocal, parseHm, todayLocal, withTimeZone, zoneLabel } from '../lib/time'
-import { curatedNear, discoverNearby } from '../lib/discover'
+import { curatedNear, discoverNearby, type DiscoverProgress } from '../lib/discover'
+import { isInJapan } from '../lib/geo'
 import { localeAt, type Locale } from '../lib/locale'
 import type { Interest, ItineraryState, LuupPlan, Pace, Place } from '../types'
 import { MODE_META } from './Journey'
@@ -16,7 +17,7 @@ import { PhotosProvider } from '../hooks/usePhotos'
 import { RainWarning, WeatherBadge } from './Weather'
 import { JoinWithInvite, type JoinInvite } from './Lobby'
 import { PlaceSearch } from './PlaceSearch'
-import { Button, Card, Notice } from './ui'
+import { Button, Card, Notice, ProgressBar } from './ui'
 
 type Step = 'welcome' | 'stay' | 'when' | 'likes' | 'extras' | 'preview'
 
@@ -99,18 +100,30 @@ export function PlanWizard({ geo, firstRun, initialHome, prefs, visited, onDone,
   const cityGuide = inJapan && region !== 'live'
 
   // Outside the built-in city guides, find things to do around the stay.
+  // Starts the moment the stay is picked, while you answer the other questions.
   const [live, setLive] = useState<{ places: Place[]; status: 'idle' | 'loading' | 'ready' | 'error' }>({ places: [], status: 'idle' })
+  const [progress, setProgress] = useState<DiscoverProgress>({ fraction: 0, label: '' })
   useEffect(() => {
-    if (region !== 'live' || !locale) return
+    if (region !== 'live') return
     const ctrl = new AbortController()
     setLive({ places: [], status: 'loading' })
-    discoverNearby(base, { inJapan: locale.country === 'JP', signal: ctrl.signal }).then(
+    setProgress({ fraction: 0, label: '' })
+    discoverNearby(base, {
+      inJapan: base.country ? base.country === 'JP' : isInJapan(base),
+      signal: ctrl.signal,
+      onProgress: (p) => !ctrl.signal.aborted && setProgress(p),
+      // OpenStreetMap answered late: "Show me a different mix" will include it.
+      onUpdate: (places) => !ctrl.signal.aborted && setLive({ places, status: 'ready' }),
+    }).then(
       (places) => setLive({ places, status: 'ready' }),
       () => !ctrl.signal.aborted && setLive({ places: [], status: 'error' }),
     )
     return () => ctrl.abort()
-  }, [region, locale])
-  const liveLoading = region === 'live' && (!locale || live.status === 'loading')
+  }, [region, baseKey])
+  const liveLoading = region === 'live' && (live.status === 'loading' || live.status === 'idle')
+  // The plan also needs the destination's time zone (a few seconds at most).
+  const previewWaiting = liveLoading || !locale
+  const stayName = base.id === 'here-pick' ? 'your stay' : base.name
 
   const d = useMemo(() => withTimeZone(locale?.tz, defaultDay), [locale?.tz])
   const [date, setDate] = useState(d.date)
@@ -157,12 +170,12 @@ export function PlanWizard({ geo, firstRun, initialHome, prefs, visited, onDone,
   // Inputs cannot change while the preview step is showing, so step + seed is enough.
   const trip = useMemo(
     () =>
-      step === 'preview' && !liveLoading
+      step === 'preview' && !previewWaiting
         ? withTimeZone(locale?.tz, () =>
             withPrefs({ luup: cityGuide ? luup : 'none' }, () => planTrip({ ...input, startDate: date, days, dayTrips: dayTrips.filter((t) => tripOptions.some((o) => o.id === t)) })),
           )
         : null,
-    [step, seed, liveLoading],
+    [step, seed, previewWaiting],
   )
   const day = trip?.[Math.min(shown, (trip?.length ?? 1) - 1)]
   // Forecast for the trip dates, so the preview can flag rainy outdoor stops.
@@ -372,13 +385,9 @@ export function PlanWizard({ geo, firstRun, initialHome, prefs, visited, onDone,
               </>
             )}
             <h2 className="pt-2 text-xl font-bold">Must-sees (optional)</h2>
-            {region === 'live' && liveLoading && (
-              <p className="flex items-center gap-2 px-1 text-[14px] text-muted">
-                <LoaderCircle size={16} className="animate-spin" /> Finding things to do near {base.name}…
-              </p>
-            )}
+            {region === 'live' && liveLoading && <ProgressBar value={progress.fraction} label={progress.label || `Finding things to do near ${stayName}…`} />}
             {region === 'live' && live.status === 'error' && (
-              <Notice tone="warn">Couldn't look up places near {base.name} (no connection?). The plan will use the built-in guide only.</Notice>
+              <Notice tone="warn">Couldn't look up places near {stayName} (no connection?). The plan will use the built-in guide only.</Notice>
             )}
             <div className="flex flex-wrap gap-2">
               {mustOptions.map((p) => (
@@ -403,10 +412,13 @@ export function PlanWizard({ geo, firstRun, initialHome, prefs, visited, onDone,
           </div>
         )}
 
-        {step === 'preview' && liveLoading && (
-          <div className="pt-24 flex flex-col items-center gap-3 text-center text-muted">
-            <LoaderCircle size={32} className="animate-spin text-accent" />
-            <p>Finding the best things to do near {base.name}…</p>
+        {step === 'preview' && previewWaiting && (
+          <div className="pt-24 space-y-4">
+            <div className="flex items-center gap-3">
+              <LoaderCircle size={22} className="animate-spin text-accent shrink-0" />
+              <p className="text-[17px] font-semibold">Finding the best things to do near {stayName}</p>
+            </div>
+            <ProgressBar value={liveLoading ? progress.fraction : 0.97} label={liveLoading ? progress.label || 'Starting…' : 'Checking the local time zone…'} />
           </div>
         )}
 
@@ -488,7 +500,7 @@ export function PlanWizard({ geo, firstRun, initialHome, prefs, visited, onDone,
       <div className="fixed inset-x-0 bottom-0 bg-app/95 backdrop-blur border-t border-line px-4 pt-3 pb-[calc(12px+env(safe-area-inset-bottom))]">
         <div className="max-w-xl mx-auto space-y-2">
           {step === 'preview' ? (
-            <>
+            !previewWaiting && <>
               <Button variant="primary" className="w-full min-h-14 text-[17px]" disabled={!trip?.some((d) => d.plan.stops.length)}
                 onClick={() => trip && onDone(trip.map((d) => planToItinerary(d.input, d.plan)), { interests, pace, luup, diet, onboarded: true })}
               >

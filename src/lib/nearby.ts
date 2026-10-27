@@ -229,7 +229,7 @@ async function wikiNearby(at: LatLng, radiusM: number, signal?: AbortSignal): Pr
 
 async function searchOnce(cat: Category, at: LatLng, radiusM: number, signal?: AbortSignal): Promise<NearbyResult[]> {
   if (cat.id === 'todo') {
-    const [wiki, osm] = await Promise.all([wikiNearby(at, radiusM, signal).catch(() => null), osmThingsToDo(at, radiusM, 0, signal).catch(() => null)])
+    const [wiki, osm] = await Promise.all([wikiNearby(at, radiusM, signal).catch(() => null), osmThingsToDo(at, radiusM, 0, signal, 8000).catch(() => null)])
     if (!wiki && !osm) throw new Error('Nothing reachable')
     const sights = (wiki ?? []).filter((r) => classify(r.place.description, r.place.name))
     const extra = (osm?.attractions ?? []).filter((p) => !sights.some((r) => samePlace(r.place, p)))
@@ -259,8 +259,9 @@ export async function findNearby(cat: Category, at: LatLng, signal?: AbortSignal
   let results = await searchOnce(cat, at, radiusM, signal)
   // A few shopping areas is plenty; single shops and sights want a few more to choose from.
   const enough = cat.id === 'shopping' ? 3 : 5
-  while (results.length < enough && radiusM < cat.maxRadiusM) {
-    radiusM = Math.min(cat.maxRadiusM, radiusM * 3)
+  // Straight to the widest search rather than creeping outwards: one more request at most.
+  if (results.length < enough && radiusM < cat.maxRadiusM) {
+    radiusM = cat.maxRadiusM
     results = await searchOnce(cat, at, radiusM, signal)
   }
   const seen = new Set<string>()

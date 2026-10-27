@@ -293,10 +293,12 @@ const ATTRACTION_FILTERS = [
  * Attractions within `radiusM` and shopping areas within `shopRadiusM` of a
  * point, in one Overpass request.
  */
-export async function osmThingsToDo(at: LatLng, radiusM: number, shopRadiusM: number, signal?: AbortSignal): Promise<{ attractions: Place[]; areas: Place[] }> {
+export async function osmThingsToDo(at: LatLng, radiusM: number, shopRadiusM: number, signal?: AbortSignal, timeoutMs?: number): Promise<{ attractions: Place[]; areas: Place[] }> {
   const pt = `${at.lat.toFixed(5)},${at.lng.toFixed(5)}`
-  const q = `[out:json][timeout:25];(${ATTRACTION_FILTERS.map((f) => `nwr${f}(around:${radiusM},${pt});`).join('')}nwr${SHOP_FILTER}(around:${shopRadiusM},${pt}););out center tags 3000;`
-  const els = await overpass(q, signal)
+  const shops = shopRadiusM > 0 ? `nwr${SHOP_FILTER}(around:${shopRadiusM},${pt});` : ''
+  // "qt" skips sorting on the server, which is noticeably quicker for big areas.
+  const q = `[out:json][timeout:15];(${ATTRACTION_FILTERS.map((f) => `nwr${f}(around:${radiusM},${pt});`).join('')}${shops});out center qt 2000;`
+  const els = await overpass(q, signal, timeoutMs)
   const attractions = els.map(attraction).filter((p): p is Place => !!p)
   return { attractions, areas: shoppingAreas(els.filter((e) => e.tags?.shop)) }
 }

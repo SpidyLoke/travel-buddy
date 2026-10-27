@@ -81,3 +81,16 @@ export function Notice({ tone = 'info', children, action }: { tone?: 'info' | 'w
     </div>
   )
 }
+
+/** Thin determinate progress bar with a short status line. */
+export function ProgressBar({ value, label, className = '' }: { value: number; label?: string; className?: string }) {
+  const pct = Math.round(Math.max(0, Math.min(1, value)) * 100)
+  return (
+    <div className={className}>
+      <div className="h-2 rounded-full bg-[var(--fill)] overflow-hidden" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct}>
+        <div className="h-full rounded-full bg-accent transition-[width] duration-500 ease-out" style={{ width: `${pct}%` }} />
+      </div>
+      {label && <div className="mt-1.5 text-[13px] text-muted">{label}</div>}
+    </div>
+  )
+}

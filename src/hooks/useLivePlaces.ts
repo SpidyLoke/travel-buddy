@@ -22,7 +22,11 @@ export function useLivePlaces(home: LatLng | null, online: boolean): { places: P
     }
     const ctrl = new AbortController()
     if (!cached) setLive({ key, places: [], status: 'loading' })
-    discoverNearby(home, { inJapan: inJapan(), signal: ctrl.signal }).then(
+    discoverNearby(home, {
+      inJapan: inJapan(),
+      signal: ctrl.signal,
+      onUpdate: (places) => !ctrl.signal.aborted && setLive({ key, places, status: 'ready' }),
+    }).then(
       (places) => setLive({ key, places, status: 'ready' }),
       () => !ctrl.signal.aborted && !cached && setLive({ key, places: [], status: 'error' }),
     )
