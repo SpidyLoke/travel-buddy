@@ -241,7 +241,7 @@ export default function App() {
         <ImportSheet
           plan={incoming}
           onUse={() => {
-            itin.replace(incoming)
+            tripPlan.putDay(incoming)
             prefs.update({ onboarded: true })
             setIncoming(null)
             clearIncoming()

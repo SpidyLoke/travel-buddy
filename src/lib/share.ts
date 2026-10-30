@@ -14,6 +14,8 @@ function prune(state: ItineraryState): ItineraryState {
     startMin: state.startMin,
     endMin: state.endMin,
     date: state.date,
+    tz: state.tz,
+    country: state.country,
     home: state.home,
     stops: state.stops,
     customPlaces: state.customPlaces?.map((p) => Object.fromEntries(PLACE_KEYS.filter((k) => p[k] !== undefined).map((k) => [k, p[k]])) as unknown as Place),

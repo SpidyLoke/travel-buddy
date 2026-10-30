@@ -29,7 +29,11 @@ export function ImportSheet({ plan, onUse, onClose }: { plan: ItineraryState; on
         <Button className="w-full" onClick={onClose}>
           Not now
         </Button>
-        <p className="px-1 text-[12px] text-muted">This replaces the plan on this phone. Visited places on your own earlier days are kept.</p>
+        <p className="px-1 text-[12px] text-muted">
+          {plan.date
+            ? `Saved as ${dateLabel(plan.date)} in your trip, replacing any plan you had for that day. Your other days stay as they are.`
+            : 'This replaces the plan you have open. Your other days stay as they are.'}
+        </p>
       </div>
     </Sheet>
   )

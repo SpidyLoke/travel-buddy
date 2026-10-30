@@ -61,10 +61,23 @@ export function useTrip(itin: ItineraryApi) {
     itinRef.current.replace(days[0])
   }, [])
 
+  /** Files a day under its date (replacing that day if the trip has it, adding it otherwise) and opens it. */
+  const putDay = useCallback((day: ItineraryState) => {
+    day.customPlaces?.forEach(registerPlace)
+    setTrip((t) => {
+      const idx = day.date ? t.days.findIndex((d) => d.date === day.date) : t.active
+      const days = idx >= 0 ? t.days.map((d, i) => (i === idx ? day : d)) : [...t.days, day].sort((a, b) => (a.date ?? '').localeCompare(b.date ?? ''))
+      const next = { days, active: days.indexOf(day) }
+      save(KEY, next)
+      return next
+    })
+    itinRef.current.replace(day)
+  }, [])
+
   const today = todayLocal()
   const todayIndex = trip.days.findIndex((d) => d.date === today)
 
-  return { days: trip.days, active: trip.active, switchDay, setDays, todayIndex }
+  return { days: trip.days, active: trip.active, switchDay, setDays, putDay, todayIndex }
 }
 
 export type TripApi = ReturnType<typeof useTrip>
