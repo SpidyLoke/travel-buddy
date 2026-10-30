@@ -65,6 +65,8 @@ export interface Place extends LatLng {
   dayTrip?: string
   /** ISO country code when known (search results, home). */
   country?: string
+  /** YouTube search terms for a video preview ("The Flying Dinosaur USJ POV"); empty for none. */
+  video?: string
 }
 
 /** Curated city guides, or 'live': anywhere else, with places found on the fly. */

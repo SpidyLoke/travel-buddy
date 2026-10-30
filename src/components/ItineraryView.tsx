@@ -24,6 +24,7 @@ import { HomeCard } from './HomeTrip'
 import { PlaceCard } from './PlaceCard'
 import { OfflineButton } from './OfflineButton'
 import { PlacePhoto } from './PlacePhoto'
+import { VideoButton } from './VideoButton'
 import { MealRow, mealSlots, type MealSlot } from './Food'
 import { DayWeatherNote, RainWarning, WeatherBadge } from './Weather'
 import { ShopChips } from './Donki'
@@ -318,6 +319,7 @@ function StopCard({ stop, index, count, itin, timeline, gps, openJourney, showOn
               <Button className="px-2 text-[14px]" onClick={() => itin.setStatus(stop.id, 'skipped')}>
                 <SkipForward size={16} /> Skip
               </Button>
+              <VideoButton place={place} className="col-span-3 min-h-10" />
             </div>
           )}
           {stop.status !== 'pending' && (

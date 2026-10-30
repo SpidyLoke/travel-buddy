@@ -6,6 +6,7 @@ import { fmtDuration } from '../lib/time'
 import type { LatLng, Place } from '../types'
 import { CopyJaButton } from './CopyJaButton'
 import { PlacePhoto } from './PlacePhoto'
+import { VideoButton } from './VideoButton'
 import { Button, Card, LinkButton, Pill } from './ui'
 
 interface Props {
@@ -71,6 +72,7 @@ export function PlaceCard({ place, gps, inPlan, onAdd, onMap }: Props) {
           {inPlan ? <Check size={16} className="text-ok" /> : <Plus size={16} />} {inPlan ? 'In plan' : 'Add'}
         </Button>
       </div>
+      <VideoButton place={place} className="w-full" />
       <CopyJaButton place={place} className="w-full text-[14px]" />
     </Card>
   )
