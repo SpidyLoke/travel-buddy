@@ -5,7 +5,7 @@ import type { ItineraryState, Place } from '../types'
 // uploaded. JSON is deflate-compressed where the browser supports it
 // (Safari 16.4+), then base64url-encoded. Prefix: z = compressed, j = plain.
 
-const PLACE_KEYS: (keyof Place)[] = ['id', 'name', 'label', 'nameJa', 'mapsQuery', 'wiki', 'lat', 'lng', 'area', 'description', 'suggestedMin', 'kind', 'hidden', 'custom', 'video']
+const PLACE_KEYS: (keyof Place)[] = ['id', 'name', 'label', 'nameJa', 'mapsQuery', 'wiki', 'lat', 'lng', 'area', 'description', 'suggestedMin', 'kind', 'hidden', 'custom', 'video', 'photoQuery']
 
 function prune(state: ItineraryState): ItineraryState {
   return {

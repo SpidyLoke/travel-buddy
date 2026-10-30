@@ -2,9 +2,11 @@ import type { Place } from '../types'
 import { distanceKm } from './geo'
 import { load, save } from './storage'
 
-// Lead images of English Wikipedia articles. `pilicense=free` restricts these
-// to freely licensed files, and the credit (author + licence) comes from the
-// file's Wikimedia Commons metadata, as the CC licences require.
+// Lead images of English Wikipedia articles (`pilicense=free` keeps them to
+// freely licensed files); failing that, a Wikimedia Commons search (every file
+// there is freely licensed), then a Wikipedia name search near the place. The
+// credit (author + licence) comes from the file's Commons metadata, as the CC
+// licences require.
 
 export interface Photo {
   url: string
@@ -21,8 +23,10 @@ interface Entry {
   photo: Photo | null
 }
 
-const KEY = 'tokyo-day:photos:v2'
+const KEY = 'tokyo-day:photos:v3'
 const TTL = 7 * 24 * 60 * 60 * 1000
+/** "No photo found" is retried sooner: sources and search terms improve. */
+const MISS_TTL = 24 * 60 * 60 * 1000
 const WIKI = 'https://en.wikipedia.org/w/api.php'
 const COMMONS = 'https://commons.wikimedia.org/w/api.php'
 
@@ -30,7 +34,7 @@ const COMMONS = 'https://commons.wikimedia.org/w/api.php'
 export function loadPhotoCache(): Record<string, Photo | null> {
   const all = load<Record<string, Entry>>(KEY, {})
   const now = Date.now()
-  return Object.fromEntries(Object.entries(all).filter(([, e]) => now - e.at < TTL).map(([id, e]) => [id, e.photo]))
+  return Object.fromEntries(Object.entries(all).filter(([, e]) => now - e.at < (e.photo ? TTL : MISS_TTL)).map(([id, e]) => [id, e.photo]))
 }
 
 function savePhotoCache(found: Record<string, Photo | null>) {
@@ -57,6 +61,56 @@ function resolver(query: { normalized?: { from: string; to: string }[]; redirect
 const spaced = (t: string) => t.replace(/_/g, ' ')
 
 const plainText = (html: string) => new DOMParser().parseFromString(html, 'text/html').body.textContent?.trim() ?? ''
+
+interface CommonsInfo {
+  thumburl?: string
+  thumbwidth: number
+  thumbheight: number
+  width?: number
+  descriptionurl: string
+  extmetadata?: { Artist?: { value: string }; LicenseShortName?: { value: string } }
+}
+
+const toPhoto = (ii: CommonsInfo): Photo => ({
+  url: ii.thumburl!,
+  width: ii.thumbwidth,
+  height: ii.thumbheight,
+  artist: plainText(ii.extmetadata?.Artist?.value ?? '') || 'Unknown author',
+  license: ii.extmetadata?.LicenseShortName?.value ?? 'see file page',
+  page: ii.descriptionurl,
+})
+
+/** Search terms for a Commons photo: the place's own, or its name and area. */
+function commonsQuery(p: Place): string | null {
+  if (p.photoQuery != null) return p.photoQuery || null
+  // "3 km from your stay" is not a place name.
+  const area = /from your stay|^shopping area$/i.test(p.area) ? '' : p.area
+  return [p.name, area].filter(Boolean).join(' ') || null
+}
+
+/** Best Commons photo for some search terms: a real photo (not an icon or map), most relevant first. */
+async function searchCommons(q: string, signal?: AbortSignal): Promise<Photo | null> {
+  const res = await fetch(
+    api(COMMONS, {
+      generator: 'search',
+      gsrsearch: `${q} filetype:bitmap`,
+      gsrnamespace: '6',
+      gsrlimit: '6',
+      prop: 'imageinfo',
+      iiprop: 'url|size|extmetadata',
+      iiurlwidth: '800',
+      iiextmetadatafilter: 'Artist|LicenseShortName',
+    }),
+    { signal },
+  )
+  if (!res.ok) return null
+  const pages: { title: string; index: number; imageinfo?: CommonsInfo[] }[] = (await res.json()).query?.pages ?? []
+  const hit = pages
+    .sort((a, b) => a.index - b.index)
+    .map((p) => p.imageinfo?.[0])
+    .find((ii) => ii?.thumburl && (ii.width ?? 0) >= 600 && !/map|logo|icon|diagram|svg/i.test(ii.descriptionurl))
+  return hit ? toPhoto(hit) : null
+}
 
 
 /** Lead photo and credit for each article title. Not cached. */
@@ -89,14 +143,7 @@ export async function fetchPhotoInfo(titles: string[], signal?: AbortSignal): Pr
     for (const p of commons.pages ?? []) {
       const ii = p.imageinfo?.[0]
       if (!ii?.thumburl) continue
-      byTitle.set(spaced(p.title), {
-        url: ii.thumburl,
-        width: ii.thumbwidth,
-        height: ii.thumbheight,
-        artist: plainText(ii.extmetadata?.Artist?.value ?? '') || 'Unknown author',
-        license: ii.extmetadata?.LicenseShortName?.value ?? 'see file page',
-        page: ii.descriptionurl,
-      })
+      byTitle.set(spaced(p.title), toPhoto(ii))
     }
     for (const f of files) {
       const photo = byTitle.get(spaced(toFile(f)))
@@ -115,7 +162,7 @@ export async function fetchPhotoInfo(titles: string[], signal?: AbortSignal): Pr
 /** Best-effort article title for a place with no (or a photo-less) wiki title: name search, sanity-checked by distance. */
 async function searchArticle(place: Place, signal?: AbortSignal): Promise<string | null> {
   const res = await fetch(
-    api(WIKI, { generator: 'search', gsrsearch: `${place.name} Tokyo`, gsrlimit: '3', prop: 'pageimages|coordinates', piprop: 'name', pilicense: 'free' }),
+    api(WIKI, { generator: 'search', gsrsearch: commonsQuery(place) ?? place.name, gsrlimit: '3', prop: 'pageimages|coordinates', piprop: 'name', pilicense: 'free' }),
     { signal },
   )
   if (!res.ok) return null
@@ -131,8 +178,9 @@ async function searchArticle(place: Place, signal?: AbortSignal): Promise<string
 }
 
 /**
- * Photos for places, by place id. Uses each place's wiki title, falls back to
- * a name search near the place, credits from Commons. Saved for a week.
+ * Photos for places, by place id: each place's wiki title, else a Commons
+ * search, else a Wikipedia name search near the place. Credits from Commons.
+ * Saved for a week (a miss for a day).
  */
 export async function resolvePhotos(places: Place[], signal?: AbortSignal): Promise<Record<string, Photo | null>> {
   const byTitle = await fetchPhotoInfo(places.flatMap((p) => (p.wiki ? [p.wiki] : [])), signal)
@@ -143,11 +191,18 @@ export async function resolvePhotos(places: Place[], signal?: AbortSignal): Prom
     if (photo) out[p.id] = photo
     else missing.push(p)
   }
-  // Fallback searches, a few at a time.
+  // Fallback searches, a few at a time: Commons first, then a nearby article.
   const titles = new Map<string, string>()
   for (let i = 0; i < missing.length; i += 4) {
     await Promise.all(
       missing.slice(i, i + 4).map(async (p) => {
+        const q = commonsQuery(p)
+        if (p.photoQuery === '') return
+        const photo = q ? await searchCommons(q, signal).catch(() => null) : null
+        if (photo) {
+          out[p.id] = photo
+          return
+        }
         const t = await searchArticle(p, signal).catch(() => null)
         if (t) titles.set(p.id, t)
       }),
@@ -155,6 +210,7 @@ export async function resolvePhotos(places: Place[], signal?: AbortSignal): Prom
   }
   const fallback = titles.size ? await fetchPhotoInfo([...titles.values()], signal) : {}
   for (const p of missing) {
+    if (out[p.id]) continue
     const t = titles.get(p.id)
     out[p.id] = (t && fallback[t]) || null
   }

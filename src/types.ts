@@ -67,6 +67,8 @@ export interface Place extends LatLng {
   country?: string
   /** YouTube search terms for a video preview ("The Flying Dinosaur USJ POV"); empty for none. */
   video?: string
+  /** Wikimedia Commons search terms for a photo when the article has none; empty for no photo. */
+  photoQuery?: string
 }
 
 /** Curated city guides, or 'live': anywhere else, with places found on the fly. */
