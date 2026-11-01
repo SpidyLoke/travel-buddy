@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowUp, CalendarPlus, Check, RefreshCw, ChevronDown, Clock, ListChecks, MapPin, Minus, Navigation, Plus, Share2, SkipForward, Sparkles, Trash2, Undo2 } from 'lucide-react'
+import { ArrowDown, ArrowUp, CalendarPlus, Map as MapIcon, Check, RefreshCw, ChevronDown, Clock, ListChecks, MapPin, Minus, Navigation, Plus, Share2, SkipForward, Sparkles, Trash2, Undo2 } from 'lucide-react'
 import { Fragment, useState, type ReactNode } from 'react'
 import { getPlace, PLACES, placeLabel } from '../data/places'
 import type { ItineraryApi } from '../hooks/useItinerary'
@@ -24,6 +24,7 @@ import { HomeCard } from './HomeTrip'
 import { PlaceCard } from './PlaceCard'
 import { OfflineButton } from './OfflineButton'
 import { PlacePhoto } from './PlacePhoto'
+import { RouteSheet } from './RouteSheet'
 import { VideoButton } from './VideoButton'
 import { MealRow, mealSlots, type MealSlot } from './Food'
 import { DayWeatherNote, RainWarning, WeatherBadge } from './Weather'
@@ -51,6 +52,7 @@ interface Props {
 
 export function ItineraryView({ itin, timeline, advice, gps, openJourney, showOnMap, trip, openHome, geo, prefs, planNew, openShare, lobbyBar, tripPlan, openFood, onReplan }: Props) {
   const [tab, setTab] = useState<'day' | 'places'>('day')
+  const [routeOpen, setRouteOpen] = useState(false)
   return (
     <div className="pt-safe bottom-nav-space px-4">
       <div className="flex items-end justify-between gap-3 pt-2">
@@ -89,6 +91,14 @@ export function ItineraryView({ itin, timeline, advice, gps, openJourney, showOn
             ))}
           </div>
         </div>
+      )}
+      {tab === 'day' && itin.state.stops.length > 0 && (
+        <Button className="mt-3 w-full" onClick={() => setRouteOpen(true)}>
+          <MapIcon size={18} /> {tripPlan.days.length > 1 ? 'Whole trip in Google Maps' : 'Whole day in Google Maps'}
+        </Button>
+      )}
+      {routeOpen && (
+        <RouteSheet days={tripPlan.days.map((d, i) => (i === tripPlan.active ? itin.state : d))} active={tripPlan.active} gps={gps} onClose={() => setRouteOpen(false)} />
       )}
       <div className="mt-3 grid grid-cols-2 rounded-2xl bg-card p-1 text-[15px] font-semibold">
         {(['day', 'places'] as const).map((t) => (
